@@ -13,6 +13,7 @@ namespace {
 
 constexpr std::size_t kMcnkHeaderPayloadSize = 128;
 constexpr std::size_t kMcnkFirstSubchunkOffset = 8 + kMcnkHeaderPayloadSize;
+constexpr std::size_t kLegacyMcnrTailSize = 13;
 
 void WriteU16(std::vector<std::uint8_t>& out, std::size_t offset, std::uint16_t value)
 {
@@ -63,6 +64,16 @@ void ValidateRawChunk(const std::vector<std::uint8_t>& chunk, const char rawId[4
         throw std::invalid_argument(std::string(name) + " declared payload size does not match bytes");
 }
 
+std::uint32_t DeclaredPayloadSize(const std::vector<std::uint8_t>& chunk)
+{
+    if (chunk.size() < 8)
+        throw std::invalid_argument("raw ADT chunk is shorter than 8 bytes");
+    return static_cast<std::uint32_t>(chunk[4]) |
+           (static_cast<std::uint32_t>(chunk[5]) << 8) |
+           (static_cast<std::uint32_t>(chunk[6]) << 16) |
+           (static_cast<std::uint32_t>(chunk[7]) << 24);
+}
+
 void AppendChunk(std::vector<std::uint8_t>& out, const std::vector<std::uint8_t>& chunk, std::uint32_t& offset)
 {
     if (chunk.empty())
@@ -99,19 +110,29 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
     result.bytes[2] = 'C';
     result.bytes[3] = 'M';
 
-    std::uint32_t flags = input.flags & ~(0x04u | 0x08u | 0x10u | 0x20u);
+    // Canonical Vanilla/Turtle writer owns these physical-presence flags.
+    // Noggit's old-MCLQ save path clears do_not_fix_alpha_map (bit 15).
+    std::uint32_t flags = input.flags & ~(0x01u | 0x3Cu | 0x40u | (1u << 15));
+    if (!subchunks.mcsh.empty())
+        flags |= 0x01u;
     if (subchunks.mclq)
         flags |= subchunks.mclq->mcnkLiquidFlags;
-    if (!subchunks.mcal.empty() || !subchunks.mcsh.empty())
-        flags |= (1u << 15);
+    if (!subchunks.mccv.empty())
+        flags |= 0x40u;
 
     AppendChunk(result.bytes, subchunks.mcvt, result.layout.offsMCVT);
     AppendChunk(result.bytes, subchunks.mcnr, result.layout.offsMCNR);
+    if (!subchunks.mcnr.empty())
+    {
+        // Blizzard/Noggit legacy ADTs carry 13 bytes after the 435-byte MCNR
+        // payload. They are outside MCNR's declared size but inside MCNK.
+        result.bytes.insert(result.bytes.end(), kLegacyMcnrTailSize, 0);
+    }
     AppendChunk(result.bytes, subchunks.mcly, result.layout.offsMCLY);
     AppendChunk(result.bytes, subchunks.mcrf, result.layout.offsMCRF);
     AppendChunk(result.bytes, subchunks.mcsh, result.layout.offsMCSH);
     if (!subchunks.mcsh.empty())
-        result.layout.sizeMCSH = CheckedU32(subchunks.mcsh.size(), "MCSH size");
+        result.layout.sizeMCSH = DeclaredPayloadSize(subchunks.mcsh);
     AppendChunk(result.bytes, subchunks.mcal, result.layout.offsMCAL);
     if (!subchunks.mcal.empty())
         result.layout.sizeMCAL = CheckedU32(subchunks.mcal.size(), "MCAL size");
