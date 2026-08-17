@@ -76,8 +76,6 @@ Magma/Lava = 6
 Hidden = 0x0F
 ```
 
-此前代码把 Slime 写成 0x06，需要修复。
-
 Noggit `mclq_tile` 还明确建模：
 
 ```text
@@ -87,12 +85,15 @@ bit7 = fatigue
 
 所以此前“fishable 无 legacy 编码”的结论不再成立；最终 bit6/bit7 policy 继续以 Turtle fixture + Noggit 交叉验证。
 
+已完成代码重构：`LegacyLiquid / MclqWriter / McnkWriter / tests` 已改为 category-grouped multi-record 模型，并覆盖 Water+Ocean=1616B、四类=3224B、Slime=0x03、same-category conflict、cross-category overlap 等测试。
+
 ## M2 关键结论
 
 - 3.3.5 与 Vanilla/Turtle M2 Header/子结构存在真实布局差异，不能只改版本字段。
 - server VMAP 对 M2 主要需要 bounding geometry；client retroport 则需要完整 M2 转换。
 - Wall-core/M2Workshop 是高价值参考：近期仍维护 Vanilla rotation/animation 修复，适合作为 M2RepairValidator / regression reference，而不是 authoritative 335->Vanilla writer。
 - M2Workshop 为 GPL-3.0，优先独立重写算法而非直接复制大量代码。
+- WoW-Crucible `StaticM2DownportService` 是 modern MD21/v274 -> WotLK v264，不是 335->Vanilla；其 loss/blocker/accounting 工程模式值得借鉴。
 
 ## WMO 关键结论
 
@@ -118,6 +119,45 @@ bit7 = fatigue
 - `wowdev/noggit3`：ADT old-MCLQ writer 已提升为 target-side 高价值参考；其 MCLQ multi-record 行为与 Turtle 真客户端一致。
 - `wowemulation-dev/warcraft-rs`：parser/struct/test 架构价值高，但 ADT liquid converter 只取 `instances[0]` 且外层 converter 有 Placeholder，不能直接承担本项目液体转换。
 - `jM2converter`：CLI 很薄，真正算法在 jM2lib lineage，后续应追真正的 jM2lib/M2Lib 实现。
+- `Zaelemgaad/WoW-Crucible`：ADT placement pipeline 价值很高；完整审计见 `WOW_CRUCIBLE_PLACEMENT_AUDIT_2026-08-18.md`。本体 MIT。
+
+## WoW-Crucible placement 结论
+
+Crucible 当前 WotLK ADT placement 实现已经确认：
+
+```text
+MMDX/MMID -> MDDF (36B)
+MWMO/MWID -> MODF (64B)
+per-MCNK MCRF rebuild
+MHDR backpatch
+MCIN 256-entry backpatch
+map-wide M2/WMO shared UID occupancy
+bounds-based cell/tile references
+multi-tile atomic publication
+```
+
+特别值得移植到 Turtle335Converter 的 invariants：
+
+1. NameId 是 MMID/MWID index position，不是字符串 byte offset。
+2. 删除 MDDF/MODF record 后，所有大于被删 index 的 MCRF references 必须减 1。
+3. MCRF 大小改变后，要 shift 所有后续 MCNK subchunk offsets 并更新 MCNK size。
+4. full writer 应重新计算 top-level positions，然后统一 backpatch MHDR + MCIN。
+5. UniqueID 应视为 map-wide namespace；M2/WMO 共用 occupancy validator。
+6. WMO MODF bounds 在 rotate/scale 时必须从 exact WMO root MOHD bounds 重算；仅 translation 可对已有 world extents 加 delta。
+7. 大型 object 跨 ADT tile 时所有 touched tiles 应作为一个协调事务处理，不能只写主 tile。
+
+因此完整 ADT Writer 不应复制源 placement chunks，而应从 NormalizedADT semantic placement tables 重新生成：
+
+```text
+canonical path catalogs
+ -> MMDX/MMID + MWMO/MWID
+ -> MDDF/MODF
+ -> per-cell MCRF
+ -> 256 MCNK
+ -> MCIN
+ -> MHDR
+ -> reopen/validate
+```
 
 ## 应新增的横向模块
 
@@ -146,16 +186,43 @@ bit7 = fatigue
    - texture dependency manifest
    - DBC/server display-binding tests
 
+5. `MapPlacementUidRegistry`
+   - preserve valid source UID
+   - detect M2/WMO/map-wide collision
+   - deterministic remap only when repair is required
+
+6. `ConversionManifest`
+   - input hashes
+   - transformations
+   - losses/blockers
+   - output hashes
+   - validation results
+
 ## 当前下一步优先级
 
-P0: **先重构现有 LegacyLiquid/MclqWriter/McnkWriter/tests 为 category-grouped multi-record MCLQ。**
-P0: 随后完成 ADT Writer（MHDR/MCIN/256xMCNK + MMDX/MMID/MWMO/MWID/MDDF/MODF + offset rebuild）并做 client/server 双侧验证。
-P0: 完成 M2 v264-source -> Vanilla/Turtle target 的字段级结构表及 writer。
-P1: 深挖 WoW-Crucible 的 MDDF/MODF/MCRF/UID/object-placement rebuild。
-P1: 追踪 jM2lib/M2Lib 真正跨版本算法，和 M2Workshop/Turtle loader 对照。
-P1: 实现 LegacyAssetPathResolver。
-P1: 建立 M2RepairValidator。
-P1: 做 WMO MOPY/material/UV2/color2 semantic downgrade。
-P2: 建立 DBC schema cross-check 和 runtime regression corpus。
+P0: **完成 full Vanilla/Turtle ADT root writer。**
+
+顺序：
+
+```text
+1. canonical M2/WMO path catalogs
+2. MMDX/MMID + MWMO/MWID serialization
+3. MDDF/MODF serialization preserving source UID/transform
+4. per-cell MCRF rebuild
+5. serialize 256 MCNK
+6. MCIN writer
+7. top-level chunks
+8. MHDR backpatch
+9. reopen + strict validate
+10. Noggit + Turtle client fixture regression
+```
+
+P0: server `.map` 仍从 original 335 MH2O 走 Trinity-style reader -> Tortoise z1.4 writer，不能从 client ADT multi-record MCLQ 反抽。
+
+P0: full ADT fixture成功后，进入 M2 v264 -> Vanilla/Turtle v256 writer，优先审计 actual jM2lib/M2Lib + M2Workshop + Turtle loader。
+
+P1: 实现 `MapPlacementUidRegistry`、`LegacyAssetPathResolver`、`ConversionManifest`。
+P1: WMO MOPY/material/UV2/color2 semantic downgrade。
+P2: DBC schema cross-check + runtime regression corpus。
 
 后续研究应优先寻找能补充这些空白的开源项目，而不是重复研究普通 MaNGOS gameplay core。
