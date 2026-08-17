@@ -28,6 +28,64 @@
 - 因此服务端 `.map` 推荐：Trinity-derived 335 reader semantics + Tortoise target `.map` writer。
 - 不直接使用 Trinity `.map` 输出，因为 Trinity 与 Tortoise map format/version 不同。
 - client ADT 仍需要真正完成 MH2O -> legacy MCLQ retroport。
+- **客户端优化后的 multi-record MCLQ 不应再被 Tortoise old-MCLQ map extractor 反抽为服务器 `.map`；服务器继续直接读原始 335 MH2O。**
+
+## 2026-08-18 MCLQ multi-record 重大修正
+
+完整证据见 `docs/research/NOGGIT_MCLQ_CROSSCHECK_2026-08-18.md`。
+
+Turtle 1.18.1 真客户端 `0x6AF760` 已确认 legacy MCLQ 按 MCNK category bits 固定遍历四类：
+
+```text
+0x04 River/Water
+0x08 Ocean
+0x10 Magma
+0x20 Slime
+```
+
+每个存在的类别消费一份独立 804-byte record，顺序固定为：
+
+```text
+River -> Ocean -> Magma -> Slime
+```
+
+Noggit3 old-MCLQ writer 与这一顺序完全吻合，并使用：
+
+```text
+MCNK.sizeMCLQ = 8 + 804 * recordCount
+MCLQ inner chunk size = 0
+```
+
+因此旧项目设计中“把不同液体类别强行合并到单一 9×9 MCLQ grid”已被新证据取代。正确设计是：
+
+```text
+MH2O instances
+ -> group by target category
+ -> merge same-category instances
+ -> at most one record per category
+ -> write records in River/Ocean/Magma/Slime order
+```
+
+重要 cell code 修正：
+
+```text
+Ocean = 1
+Slime = 3
+River/Water = 4
+Magma/Lava = 6
+Hidden = 0x0F
+```
+
+此前代码把 Slime 写成 0x06，需要修复。
+
+Noggit `mclq_tile` 还明确建模：
+
+```text
+bit6 = fishable
+bit7 = fatigue
+```
+
+所以此前“fishable 无 legacy 编码”的结论不再成立；最终 bit6/bit7 policy 继续以 Turtle fixture + Noggit 交叉验证。
 
 ## M2 关键结论
 
@@ -54,6 +112,12 @@
 - AshenWoW: B- — fork-specific extractor diff reference
 - Everlook-Bugtracker: A-（验证）— terrain/LOS/texture/display runtime regression corpus
 - Wallcraft-bugtracker: D — 当前资产转换价值低
+
+## 新仓库调研结论
+
+- `wowdev/noggit3`：ADT old-MCLQ writer 已提升为 target-side 高价值参考；其 MCLQ multi-record 行为与 Turtle 真客户端一致。
+- `wowemulation-dev/warcraft-rs`：parser/struct/test 架构价值高，但 ADT liquid converter 只取 `instances[0]` 且外层 converter 有 Placeholder，不能直接承担本项目液体转换。
+- `jM2converter`：CLI 很薄，真正算法在 jM2lib lineage，后续应追真正的 jM2lib/M2Lib 实现。
 
 ## 应新增的横向模块
 
@@ -84,8 +148,11 @@
 
 ## 当前下一步优先级
 
-P0: 完成 ADT Writer（MHDR/MCIN/256xMCNK + offset rebuild）并做 client/server双侧验证。
+P0: **先重构现有 LegacyLiquid/MclqWriter/McnkWriter/tests 为 category-grouped multi-record MCLQ。**
+P0: 随后完成 ADT Writer（MHDR/MCIN/256xMCNK + MMDX/MMID/MWMO/MWID/MDDF/MODF + offset rebuild）并做 client/server 双侧验证。
 P0: 完成 M2 v264-source -> Vanilla/Turtle target 的字段级结构表及 writer。
+P1: 深挖 WoW-Crucible 的 MDDF/MODF/MCRF/UID/object-placement rebuild。
+P1: 追踪 jM2lib/M2Lib 真正跨版本算法，和 M2Workshop/Turtle loader 对照。
 P1: 实现 LegacyAssetPathResolver。
 P1: 建立 M2RepairValidator。
 P1: 做 WMO MOPY/material/UV2/color2 semantic downgrade。
