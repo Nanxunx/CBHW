@@ -17,6 +17,14 @@ enum class LiquidCategory : std::uint8_t
     Unknown
 };
 
+enum class LegacyLiquidSlot : std::uint8_t
+{
+    River = 0,
+    Ocean = 1,
+    Magma = 2,
+    Slime = 3
+};
+
 struct LiquidVertex
 {
     float height = 0.0f;
@@ -38,6 +46,8 @@ struct LiquidLayer
     std::vector<LiquidVertex> vertices;
 
     // MCNK-absolute 8x8 bitmaps, bit=(y*8+x).
+    // The second MH2O attribute is commonly called Deep/Fatigue by different tools.
+    // It is encoded into legacy MCLQ tile bit 7; fishable is tile bit 6.
     std::uint64_t deepMask = 0;
     std::uint64_t fishableMask = 0;
 };
@@ -48,13 +58,21 @@ struct LegacyMclqVertex
     float height = 0.0f;
 };
 
+// One 804-byte legacy MCLQ record. A target MCNK may contain at most one record
+// for each category slot (River, Ocean, Magma, Slime), in that fixed order.
 struct LegacyMclq
 {
+    LiquidCategory category = LiquidCategory::Unknown;
     float minHeight = 0.0f;
     float maxHeight = 0.0f;
     std::array<LegacyMclqVertex, 81> vertices{};
     std::array<std::uint8_t, 64> cellFlags{};
     std::array<std::uint8_t, 84> flowData{};
+};
+
+struct LegacyMclqBlock
+{
+    std::array<std::optional<LegacyMclq>, 4> records{};
     std::uint32_t mcnkLiquidFlags = 0;
 };
 
@@ -63,9 +81,7 @@ enum class LiquidDiagnosticKind
     OverlappingCells,
     SharedVertexHeightConflict,
     SharedVertexPayloadConflict,
-    MagmaSlimeMixed,
-    MissingUvSynthesized,
-    FishableNotEncoded
+    MissingUvSynthesized
 };
 
 struct LiquidDiagnostic
@@ -78,7 +94,7 @@ struct LiquidDiagnostic
 
 struct LiquidBuildResult
 {
-    std::optional<LegacyMclq> mclq;
+    LegacyMclqBlock block;
     bool lossless = true;
     std::vector<LiquidDiagnostic> diagnostics;
 };
@@ -88,9 +104,9 @@ constexpr std::uint8_t LegacyCellCode(LiquidCategory category) noexcept
     switch (category)
     {
         case LiquidCategory::Ocean: return 0x01;
+        case LiquidCategory::Slime: return 0x03;
         case LiquidCategory::Water: return 0x04;
-        case LiquidCategory::Magma:
-        case LiquidCategory::Slime: return 0x06;
+        case LiquidCategory::Magma: return 0x06;
         default: return 0x0F;
     }
 }
@@ -107,6 +123,24 @@ constexpr std::uint32_t McnkLiquidFlag(LiquidCategory category) noexcept
     }
 }
 
-LiquidBuildResult BuildLegacyMclq(const std::vector<LiquidLayer>& layers, float heightEpsilon = 1.0e-4f);
+constexpr std::optional<LegacyLiquidSlot> SlotForCategory(LiquidCategory category) noexcept
+{
+    switch (category)
+    {
+        case LiquidCategory::Water: return LegacyLiquidSlot::River;
+        case LiquidCategory::Ocean: return LegacyLiquidSlot::Ocean;
+        case LiquidCategory::Magma: return LegacyLiquidSlot::Magma;
+        case LiquidCategory::Slime: return LegacyLiquidSlot::Slime;
+        default: return std::nullopt;
+    }
+}
+
+constexpr std::size_t SlotIndex(LegacyLiquidSlot slot) noexcept
+{
+    return static_cast<std::size_t>(slot);
+}
+
+std::size_t LegacyMclqRecordCount(const LegacyMclqBlock& block) noexcept;
+LiquidBuildResult BuildLegacyMclqBlock(const std::vector<LiquidLayer>& layers, float heightEpsilon = 1.0e-4f);
 
 } // namespace turtle335::adt
