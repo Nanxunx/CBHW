@@ -1,3 +1,4 @@
+#include "turtle335/adt/AdtValidator.h"
 #include "turtle335/adt/AdtWriter.h"
 #include "turtle335/adt/TerrainWriter.h"
 
@@ -5,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 
 using namespace turtle335::adt;
 
@@ -14,6 +16,14 @@ static std::uint32_t ReadLe32(const std::uint8_t* p)
            (std::uint32_t(p[1]) << 8) |
            (std::uint32_t(p[2]) << 16) |
            (std::uint32_t(p[3]) << 24);
+}
+
+static void WriteLe32(std::vector<std::uint8_t>& bytes, std::size_t offset, std::uint32_t value)
+{
+    bytes[offset + 0] = static_cast<std::uint8_t>(value & 0xFFu);
+    bytes[offset + 1] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
+    bytes[offset + 2] = static_cast<std::uint8_t>((value >> 16) & 0xFFu);
+    bytes[offset + 3] = static_cast<std::uint8_t>((value >> 24) & 0xFFu);
 }
 
 int main()
@@ -47,6 +57,14 @@ int main()
 
     const SerializedAdt out = SerializeVanillaAdt(adt);
     ValidateVanillaAdtRoot(out.bytes);
+    const AdtValidationReport report = ValidateVanillaAdt(out.bytes);
+    assert(report.version == 18);
+    assert(report.textureCount == 1);
+    assert(report.mcnkCount == 256);
+    assert(report.m2PlacementCount == 0);
+    assert(report.wmoPlacementCount == 0);
+    assert(report.liquidRecordCount == 0);
+    assert(report.soundEmitterCount == 0);
 
     assert(out.layout.mcinOffset == 84);
     assert(out.layout.mtexOffset != 0);
@@ -97,6 +115,39 @@ int main()
         assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMclq, "QLCM", 4) == 0);
         assert(ReadLe32(out.bytes.data() + mcnkOffset + ofsMclq + 4u) == 0);
         assert(sizeMclq == 8);
+    }
+
+    const std::size_t firstMcnk = out.layout.mcnkOffsets[0];
+    const std::size_t firstMcly = firstMcnk + ReadLe32(out.bytes.data() + firstMcnk + 36u);
+
+    // Corruption case 1: old-MCLQ canonical path must reject bit15.
+    {
+        auto bad = out.bytes;
+        bad[firstMcnk + 9u] |= 0x80u; // little-endian bit15
+        bool rejected = false;
+        try { (void)ValidateVanillaAdt(bad); }
+        catch (const std::runtime_error&) { rejected = true; }
+        assert(rejected);
+    }
+
+    // Corruption case 2: MCLY textureId must resolve through MTEX.
+    {
+        auto bad = out.bytes;
+        WriteLe32(bad, firstMcly + 8u, 99u);
+        bool rejected = false;
+        try { (void)ValidateVanillaAdt(bad); }
+        catch (const std::runtime_error&) { rejected = true; }
+        assert(rejected);
+    }
+
+    // Corruption case 3: dry QLCM must remain sizeLiquid=8.
+    {
+        auto bad = out.bytes;
+        WriteLe32(bad, firstMcnk + 108u, 812u);
+        bool rejected = false;
+        try { (void)ValidateVanillaAdt(bad); }
+        catch (const std::runtime_error&) { rejected = true; }
+        assert(rejected);
     }
 
     std::cout << "turtle335_fixture_a_tests: OK bytes=" << out.bytes.size() << "\n";
