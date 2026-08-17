@@ -189,7 +189,7 @@ static void TestMclqSerialization()
     const auto chunk = SerializeLegacyMclqChunk(*built.mclq);
     static_assert(payload.size() == 804);
     static_assert(chunk.size() == 812);
-    assert(chunk[0] == 'M' && chunk[1] == 'C' && chunk[2] == 'L' && chunk[3] == 'Q');
+    assert(chunk[0] == 'Q' && chunk[1] == 'L' && chunk[2] == 'C' && chunk[3] == 'M');
     assert(ReadLe32(chunk.data() + 4) == 804);
     assert(std::equal(payload.begin(), payload.end(), chunk.begin() + 8));
 
@@ -212,7 +212,7 @@ static void TestMh2oReaderHeightDepth()
     constexpr std::size_t payloadSize = vertexOff + vertexCount * 4 + vertexCount;
 
     std::vector<std::uint8_t> chunk(8 + payloadSize, 0);
-    chunk[0] = 'M'; chunk[1] = 'H'; chunk[2] = '2'; chunk[3] = 'O';
+    chunk[0] = 'O'; chunk[1] = '2'; chunk[2] = 'H'; chunk[3] = 'M';
     WriteLe32(chunk, 4, payloadSize);
 
     const std::size_t base = 8;
