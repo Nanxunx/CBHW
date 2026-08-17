@@ -51,7 +51,7 @@ static LiquidLayer MakeLayer(LiquidCategory category, float height)
 int main()
 {
     McnkTargetHeader h;
-    h.flags = 0x100;
+    h.flags = 0x8000; // source-side do_not_fix_alpha_map must be cleared by target writer
     h.ix = 3;
     h.iy = 5;
     h.nLayers = 2;
@@ -76,6 +76,7 @@ int main()
     chunks.mcrf = MakeRawChunk("FRCM", 6 * 4);
     chunks.mcsh = MakeRawChunk("HSCM", 512);
     chunks.mcal = MakeRawChunk("LACM", 2048);
+    chunks.mccv = MakeRawChunk("VCCM", 145 * 4);
     chunks.mclq = liquid.block;
 
     const auto out = SerializeVanillaMcnk(h, chunks);
@@ -86,12 +87,19 @@ int main()
     const std::size_t ph = 8;
     const std::uint32_t flags = ReadLe32(out.bytes.data() + ph + 0);
     assert((flags & 0x3C) == 0x0C);
-    assert((flags & (1u << 15)) != 0);
+    assert((flags & (1u << 15)) == 0); // old-MCLQ canonical path
+    assert((flags & 0x01u) != 0);      // MCSH present
+    assert((flags & 0x40u) != 0);      // MCCV present
+
     assert(ReadLe32(out.bytes.data() + ph + 20) == 136);
+    assert(out.layout.offsMCLY == out.layout.offsMCNR + chunks.mcnr.size() + 13);
+    for (std::size_t i = 0; i < 13; ++i)
+        assert(out.bytes[out.layout.offsMCNR + chunks.mcnr.size() + i] == 0);
+
     assert(ReadLe32(out.bytes.data() + ph + 36) == out.layout.offsMCAL);
     assert(ReadLe32(out.bytes.data() + ph + 40) == chunks.mcal.size());
     assert(ReadLe32(out.bytes.data() + ph + 44) == out.layout.offsMCSH);
-    assert(ReadLe32(out.bytes.data() + ph + 48) == chunks.mcsh.size());
+    assert(ReadLe32(out.bytes.data() + ph + 48) == 512); // MCSH payload, not full chunk
     assert(ReadLe32(out.bytes.data() + ph + 96) == out.layout.offsMCLQ);
     assert(ReadLe32(out.bytes.data() + ph + 100) == 1616);
 
