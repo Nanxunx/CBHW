@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(turtle335_core
     src/adt/Mcal.cpp
     src/adt/LegacyLiquid.cpp
+    src/adt/MclqWriter.cpp
+    src/adt/Mh2oReader.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
