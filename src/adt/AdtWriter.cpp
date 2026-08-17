@@ -112,8 +112,9 @@ std::size_t Slot(std::uint32_t x, std::uint32_t y)
 {
     if (x >= 16 || y >= 16)
         throw std::invalid_argument("ADT MCNK ix/iy must be within 0..15");
-    // Matches Tortoise adt_MCIN::cells[x][y] C-array layout.
-    return static_cast<std::size_t>(x) * 16u + static_cast<std::size_t>(y);
+    // Blizzard/Noggit MCIN order is row-major by iy, then ix: py*16+px.
+    // Tortoise's ConvertADT likewise treats getMCNK(i,j) as y,x.
+    return static_cast<std::size_t>(y) * 16u + static_cast<std::size_t>(x);
 }
 
 void PatchMhdrOffset(std::vector<std::uint8_t>& bytes,
@@ -217,7 +218,7 @@ SerializedAdt SerializeVanillaAdt(const AdtWriterInput& input)
     PatchMhdrOffset(result.bytes, result.layout.mhdrOffset, 36, result.layout.mfboOffset);
     PatchMhdrOffset(result.bytes, result.layout.mhdrOffset, 40, 0); // MH2O intentionally absent in target client ADT.
 
-    // MCIN is 256 cells[x][y], each 16 bytes: absolute MCNK offset, byte size, flags, asyncId.
+    // MCIN entries are y-major: slot = iy*16+ix.
     const std::size_t mcinPayload = static_cast<std::size_t>(result.layout.mcinOffset) + 8u;
     for (std::size_t slot = 0; slot < 256; ++slot)
     {
@@ -287,11 +288,11 @@ void ValidateVanillaAdtRoot(const std::vector<std::uint8_t>& bytes)
         if (static_cast<std::uint64_t>(declaredPayload) + 8u != size)
             throw std::runtime_error("MCIN MCNK size disagrees with MCNK chunk header");
 
-        const std::uint32_t expectedX = static_cast<std::uint32_t>(slot / 16u);
-        const std::uint32_t expectedY = static_cast<std::uint32_t>(slot % 16u);
+        const std::uint32_t expectedX = static_cast<std::uint32_t>(slot % 16u);
+        const std::uint32_t expectedY = static_cast<std::uint32_t>(slot / 16u);
         if (ReadU32(bytes.data() + offset + 12u) != expectedX ||
             ReadU32(bytes.data() + offset + 16u) != expectedY)
-            throw std::runtime_error("MCIN cells[x][y] slot disagrees with MCNK ix/iy");
+            throw std::runtime_error("MCIN y-major slot disagrees with MCNK ix/iy");
     }
 }
 
