@@ -28,7 +28,15 @@ static LiquidLayer MakeFlatLayer(LiquidCategory cat, int x, int y, int w, int h,
     for (auto& v : l.vertices)
     {
         v.height = z;
-        v.depth = 127;
+        if (cat == LiquidCategory::Magma || cat == LiquidCategory::Slime)
+        {
+            v.u = 256;
+            v.v = 512;
+        }
+        else
+        {
+            v.depth = 127;
+        }
     }
     return l;
 }
@@ -85,28 +93,40 @@ static void TestMcalRle()
     assert(std::all_of(decoded.begin(), decoded.end(), [](std::uint8_t v) { return v == 42; }));
 }
 
-static void TestLiquidNonOverlappingMerge()
+static void TestLiquidCategoryRecords()
 {
-    auto water = MakeFlatLayer(LiquidCategory::Water, 0, 0, 3, 3, 10.0f);
-    auto ocean = MakeFlatLayer(LiquidCategory::Ocean, 5, 5, 3, 3, 20.0f);
-    ocean.deepMask = (std::uint64_t{1} << (5 * 8 + 5));
+    // Cross-category overlap is valid because Turtle consumes independent records.
+    auto water = MakeFlatLayer(LiquidCategory::Water, 0, 0, 2, 2, 10.0f);
+    auto ocean = MakeFlatLayer(LiquidCategory::Ocean, 0, 0, 2, 2, 20.0f);
+    ocean.fishableMask = 1;
+    ocean.deepMask = 1;
 
-    const auto r = BuildLegacyMclq({water, ocean});
-    assert(r.mclq.has_value());
+    const auto r = BuildLegacyMclqBlock({water, ocean});
     assert(r.lossless);
-    assert(r.mclq->cellFlags[0] == 0x04);
-    assert(r.mclq->cellFlags[5 * 8 + 5] == (0x01 | 0x80));
-    assert((r.mclq->mcnkLiquidFlags & 0x0C) == 0x0C);
-    assert(r.mclq->minHeight == 10.0f);
-    assert(r.mclq->maxHeight == 20.0f);
+    assert(LegacyMclqRecordCount(r.block) == 2);
+    assert(r.block.mcnkLiquidFlags == 0x0C);
+    assert(r.block.records[0].has_value());
+    assert(r.block.records[1].has_value());
+    assert(r.block.records[0]->cellFlags[0] == 0x04);
+    assert(r.block.records[1]->cellFlags[0] == (0x01 | 0x40 | 0x80));
+}
+
+static void TestLiquidSameCategoryMerge()
+{
+    auto a = MakeFlatLayer(LiquidCategory::Water, 0, 0, 1, 1, 10.0f);
+    auto b = MakeFlatLayer(LiquidCategory::Water, 3, 3, 1, 1, 20.0f);
+    const auto r = BuildLegacyMclqBlock({a, b});
+    assert(r.lossless);
+    assert(LegacyMclqRecordCount(r.block) == 1);
+    assert(r.block.records[0]->minHeight == 10.0f);
+    assert(r.block.records[0]->maxHeight == 20.0f);
 }
 
 static void TestLiquidOverlapDiagnostic()
 {
     auto a = MakeFlatLayer(LiquidCategory::Water, 0, 0, 2, 2, 10.0f);
-    auto b = MakeFlatLayer(LiquidCategory::Ocean, 1, 1, 2, 2, 10.0f);
-    const auto r = BuildLegacyMclq({a, b});
-    assert(r.mclq.has_value());
+    auto b = MakeFlatLayer(LiquidCategory::Water, 1, 1, 2, 2, 20.0f);
+    const auto r = BuildLegacyMclqBlock({a, b});
     assert(!r.lossless);
     assert(std::any_of(r.diagnostics.begin(), r.diagnostics.end(), [](const LiquidDiagnostic& d) {
         return d.kind == LiquidDiagnosticKind::OverlappingCells;
@@ -117,30 +137,30 @@ static void TestLiquidSharedVertexConflict()
 {
     auto a = MakeFlatLayer(LiquidCategory::Water, 0, 0, 1, 1, 10.0f);
     auto b = MakeFlatLayer(LiquidCategory::Water, 1, 0, 1, 1, 20.0f);
-    const auto r = BuildLegacyMclq({a, b});
-    assert(r.mclq.has_value());
+    const auto r = BuildLegacyMclqBlock({a, b});
     assert(!r.lossless);
     assert(std::any_of(r.diagnostics.begin(), r.diagnostics.end(), [](const LiquidDiagnostic& d) {
         return d.kind == LiquidDiagnosticKind::SharedVertexHeightConflict;
     }));
 }
 
-static void TestLiquidSharedVertexPayloadConflict()
+static void TestLiquidCodesAndFourSlots()
 {
+    static_assert(LegacyCellCode(LiquidCategory::Ocean) == 0x01);
+    static_assert(LegacyCellCode(LiquidCategory::Slime) == 0x03);
+    static_assert(LegacyCellCode(LiquidCategory::Water) == 0x04);
+    static_assert(LegacyCellCode(LiquidCategory::Magma) == 0x06);
+
     auto water = MakeFlatLayer(LiquidCategory::Water, 0, 0, 1, 1, 10.0f);
-    auto magma = MakeFlatLayer(LiquidCategory::Magma, 1, 0, 1, 1, 10.0f);
-    for (auto& v : magma.vertices)
-    {
-        v.depth.reset();
-        v.u = 100;
-        v.v = 200;
-    }
-    const auto r = BuildLegacyMclq({water, magma});
-    assert(r.mclq.has_value());
-    assert(!r.lossless);
-    assert(std::any_of(r.diagnostics.begin(), r.diagnostics.end(), [](const LiquidDiagnostic& d) {
-        return d.kind == LiquidDiagnosticKind::SharedVertexPayloadConflict;
-    }));
+    auto ocean = MakeFlatLayer(LiquidCategory::Ocean, 1, 1, 1, 1, 20.0f);
+    auto magma = MakeFlatLayer(LiquidCategory::Magma, 2, 2, 1, 1, 30.0f);
+    auto slime = MakeFlatLayer(LiquidCategory::Slime, 3, 3, 1, 1, 40.0f);
+
+    const auto r = BuildLegacyMclqBlock({slime, magma, ocean, water});
+    assert(r.lossless);
+    assert(LegacyMclqRecordCount(r.block) == 4);
+    assert(r.block.mcnkLiquidFlags == 0x3C);
+    assert(r.block.records[3]->cellFlags[3 * 8 + 3] == 0x03);
 }
 
 static std::uint32_t ReadLe32(const std::uint8_t* p)
@@ -162,7 +182,7 @@ static void WriteLe32(std::vector<std::uint8_t>& b, std::size_t o, std::uint32_t
     b[o] = std::uint8_t(v & 0xFFu);
     b[o + 1] = std::uint8_t((v >> 8) & 0xFFu);
     b[o + 2] = std::uint8_t((v >> 16) & 0xFFu);
-    b[o + 3] = std::uint8_t((v >> 24) & 0xFFu);
+    b[o + 3] = std::uint8_t(v >> 24);
 }
 
 static void WriteLe64(std::vector<std::uint8_t>& b, std::size_t o, std::uint64_t v)
@@ -182,15 +202,15 @@ static void WriteLeF32(std::vector<std::uint8_t>& b, std::size_t o, float f)
 static void TestMclqSerialization()
 {
     auto water = MakeFlatLayer(LiquidCategory::Water, 0, 0, 1, 1, 12.5f);
-    const auto built = BuildLegacyMclq({water});
-    assert(built.mclq.has_value());
+    const auto built = BuildLegacyMclqBlock({water});
+    assert(built.block.records[0].has_value());
 
-    const auto payload = SerializeLegacyMclqPayload(*built.mclq);
-    const auto chunk = SerializeLegacyMclqChunk(*built.mclq);
+    const auto payload = SerializeLegacyMclqPayload(*built.block.records[0]);
+    const auto chunk = SerializeLegacyMclqChunk(*built.block.records[0]);
     static_assert(payload.size() == 804);
     static_assert(chunk.size() == 812);
     assert(chunk[0] == 'Q' && chunk[1] == 'L' && chunk[2] == 'C' && chunk[3] == 'M');
-    assert(ReadLe32(chunk.data() + 4) == 804);
+    assert(ReadLe32(chunk.data() + 4) == 0);
     assert(std::equal(payload.begin(), payload.end(), chunk.begin() + 8));
 
     const std::size_t flagsOffset = 8 + 81 * 8;
@@ -199,6 +219,18 @@ static void TestMclqSerialization()
 
     const std::size_t flowOffset = flagsOffset + 64;
     assert(ReadLe32(payload.data() + flowOffset) == 0);
+
+    auto ocean = MakeFlatLayer(LiquidCategory::Ocean, 0, 0, 1, 1, 20.0f);
+    const auto two = BuildLegacyMclqBlock({water, ocean});
+    const auto twoBytes = SerializeLegacyMclqBlock(two.block);
+    assert(twoBytes.size() == 1616);
+    assert(ReadLe32(twoBytes.data() + 4) == 0);
+
+    auto magma = MakeFlatLayer(LiquidCategory::Magma, 0, 0, 1, 1, 30.0f);
+    auto slime = MakeFlatLayer(LiquidCategory::Slime, 0, 0, 1, 1, 40.0f);
+    const auto four = BuildLegacyMclqBlock({water, ocean, magma, slime});
+    const auto fourBytes = SerializeLegacyMclqBlock(four.block);
+    assert(fourBytes.size() == 3224);
 }
 
 static void TestMh2oReaderHeightDepth()
@@ -267,10 +299,11 @@ int main()
     TestHoles();
     TestMcalQuantization();
     TestMcalRle();
-    TestLiquidNonOverlappingMerge();
+    TestLiquidCategoryRecords();
+    TestLiquidSameCategoryMerge();
     TestLiquidOverlapDiagnostic();
     TestLiquidSharedVertexConflict();
-    TestLiquidSharedVertexPayloadConflict();
+    TestLiquidCodesAndFourSlots();
     TestMclqSerialization();
     TestMh2oReaderHeightDepth();
     std::cout << "turtle335_core_tests: OK\n";
