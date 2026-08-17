@@ -23,6 +23,9 @@ target_compile_options(turtle335_core PRIVATE
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
 )
 
+add_executable(turtle335_generate_fixture_a tools/generate_fixture_a.cpp)
+target_link_libraries(turtle335_generate_fixture_a PRIVATE turtle335_core)
+
 add_executable(turtle335_core_tests tests/test_adt_core.cpp)
 target_link_libraries(turtle335_core_tests PRIVATE turtle335_core)
 
