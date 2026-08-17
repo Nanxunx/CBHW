@@ -119,10 +119,13 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
 
     if (subchunks.mclq)
     {
-        const LegacyMclqChunkBytes liquid = SerializeLegacyMclqChunk(*subchunks.mclq);
-        result.layout.offsMCLQ = CheckedU32(result.bytes.size(), "MCLQ offset");
-        result.layout.sizeMCLQ = CheckedU32(liquid.size(), "MCLQ size");
-        result.bytes.insert(result.bytes.end(), liquid.begin(), liquid.end());
+        const std::vector<std::uint8_t> liquid = SerializeLegacyMclqBlock(*subchunks.mclq);
+        if (!liquid.empty())
+        {
+            result.layout.offsMCLQ = CheckedU32(result.bytes.size(), "MCLQ offset");
+            result.layout.sizeMCLQ = CheckedU32(liquid.size(), "MCLQ size");
+            result.bytes.insert(result.bytes.end(), liquid.begin(), liquid.end());
+        }
     }
 
     AppendChunk(result.bytes, subchunks.mccv, result.layout.offsMCCV);
