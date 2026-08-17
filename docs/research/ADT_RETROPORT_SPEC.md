@@ -1,32 +1,128 @@
 # ADT Retroport Spec — 3.3.5a -> Vanilla/Turtle 1.18.1
 
-状态：研究中。
+状态：**第一版转换规则基本冻结；核心高风险项已有真实客户端/源码证据。**
 
-目标：把 WoW 3.3.5a 地图 ADT/WDT/WDL 及其资源引用转换成 Vanilla 1.12.x / Turtle WoW 1.18.1 可加载格式，并保证 Tortoise extractor 能继续生成 maps/vmaps/mmaps。
+目标：把 WoW 3.3.5a build 12340 的 ADT/WDT/WDL 及引用资源转换为 Turtle WoW 1.18.1 / Vanilla-derived 客户端可加载格式，同时保证 Penqle/tortoise-wow tools 能生成 maps/vmaps/mmaps。
+
+详细证据文档：
+
+- `ADT_TURTLE_CLIENT_BINARY_ANALYSIS.md`
+- `ADT_MCAL_BINARY_ANALYSIS.md`
+- `ADT_HOLES_BINARY_ANALYSIS.md`
+- `WDT_WDL_BINARY_ANALYSIS.md`
 
 ---
 
-## 1. 设计原则
+## 1. 总设计原则
 
-ADT 不能按“删掉高版本 chunk”处理。
+禁止把 ADT 转换实现成“改 MVER / 删除高版本 chunk / 原地修几个 offset”。
 
-必须：
+正式流程：
 
 ```text
-parse source
- -> normalize terrain/liquid/placements/layers
- -> convert semantics
- -> rebuild MCNK internals
- -> rebuild top-level offsets/tables
- -> write target
- -> validate
+3.3.5a ADT
+    -> WotlkAdtReader
+    -> NormalizedADT
+    -> semantic downgrade
+    -> VanillaAdtWriter
+    -> reopen + validate
+    -> Turtle client test
 ```
 
-所有 MCNK 内部 offsets 必须在写出时重新计算。
+服务器输出是另一条路线：
+
+```text
+Original 3.3.5a ADT
+    -> TC/AZ-style terrain + MH2O reader
+    -> normalized server terrain/liquid
+    -> Tortoise .map writer
+    -> Tortoise vmap/mmaps pipeline
+```
+
+不要为了生成服务器 `.map` 先做一次 MH2O→MCLQ。
 
 ---
 
-# 2. Vanilla 常见顶层 chunks
+## 2. 目标客户端格式权威来源
+
+优先级：
+
+1. 用户提供的 Turtle WoW 1.18.1 `WoW.exe` 真客户端 loader。
+2. Vanilla 1.12.1 客户端逆向交叉验证。
+3. Penqle/tortoise-wow extractor。
+4. 社区格式文档。
+
+已确认 Turtle terrain subsystem 与 Vanilla loader 高度同源：
+
+```text
+0x6C2010  ADT root / MHDR offset-table parse
+0x6AF970  MCNK legacy subchunk pointer fixup
+0x68D540  MCLQ 9x9 liquid consumer
+```
+
+因此 Turtle 客户端目标应按 Vanilla legacy terrain representation 写出。
+
+---
+
+## 3. Normalized ADT
+
+中间模型不得保留源文件二进制 offsets。
+
+```cpp
+struct NormalizedAdt
+{
+    std::vector<std::string> textures;
+    std::vector<std::string> m2Names;
+    std::vector<std::string> wmoNames;
+
+    std::vector<M2Placement> m2Placements;
+    std::vector<WmoPlacement> wmoPlacements;
+
+    std::array<NormalizedMcnk, 256> chunks;
+};
+```
+
+```cpp
+struct NormalizedMcnk
+{
+    uint32_t indexX;
+    uint32_t indexY;
+    uint32_t sourceFlags;
+    uint32_t areaId;
+
+    std::array<float, 145> heights;
+    std::array<Vec3, 145> normals;
+
+    std::vector<NormalizedTextureLayer> layers;
+    NormalizedShadowMap shadow;
+    NormalizedHoleData holes;
+
+    std::vector<uint32_t> doodadRefs;
+    std::vector<uint32_t> wmoRefs;
+
+    std::vector<NormalizedLiquidLayer> liquids;
+};
+```
+
+Offsets 如：
+
+```text
+ofsMCVT
+offsMCNR
+offsMCLY
+offsMCRF
+offsMCAL
+offsMCSH
+offsMCLQ
+```
+
+只存在于 Source Reader / Target Writer，不进入 normalized model。
+
+---
+
+## 4. 顶层 chunks
+
+目标普通 tile ADT 使用/重建：
 
 ```text
 MVER
@@ -42,102 +138,116 @@ MODF
 MCNK x 256
 ```
 
-其中：
+可选 legacy chunks 根据真实输入/目标支持情况写出，例如：
 
-- MTEX：地表纹理路径
-- MMDX/MMID：M2 模型路径及 offset 表
-- MWMO/MWID：WMO 路径及 offset 表
-- MDDF：M2 placement
-- MODF：WMO placement
-- MCNK：16 x 16 terrain chunks
+```text
+MFBO
+```
+
+WotLK-only 或目标不消费的 top-level metadata 不得盲目复制。
+
+所有顶层 offset tables 在最终布局确定后重新生成。
 
 ---
 
-# 3. Normalized ADT
+## 5. MCNK Header — 字段级读取/写出
 
-建议：
+不要用同一个 C struct 解释两代文件。
+
+源 build12340 在一些 server extractors 中可见 `uint32 holes` 声明，但真实客户端已证明该4字节区域实际应拆成：
+
+```text
++0x3C uint16 holesLowRes
++0x3E uint16 other/legacy field
+```
+
+目标同样以：
+
+```text
+uint16 holes
+uint16 pad/legacy
+```
+
+写出。
+
+所以禁止：
 
 ```cpp
-struct NormalizedAdt
-{
-    uint32_t version;
-
-    std::vector<std::string> textures;
-    std::vector<std::string> m2Names;
-    std::vector<std::string> wmoNames;
-
-    std::vector<M2Placement> m2Placements;
-    std::vector<WmoPlacement> wmoPlacements;
-
-    std::array<NormalizedMcnk, 256> chunks;
-};
+reinterpret_cast<VanillaMcnkHeader*>(&wotlkHeader)
 ```
 
-MCNK：
+必须逐字段构造目标 header。
 
-```cpp
-struct NormalizedMcnk
-{
-    int indexX;
-    int indexY;
+---
 
-    uint32_t sourceFlags;
+## 6. MCVT / terrain heights
 
-    std::vector<float> heights;
-    std::vector<Vec3> normals;
+MCVT terrain topology在目标范围内保持同类 145-height staggered grid。
 
-    std::vector<TerrainLayer> layers;
-    std::vector<AlphaMap> alphaMaps;
+原则：
 
-    ShadowMap shadow;
-    HoleMask holes;
+- 不做无意义重采样。
+- 保留 terrain shape。
+- 所有 float 必须 finite。
+- shared boundaries 进行 seam validation。
 
-    std::vector<uint32_t> doodadRefs;
-    std::vector<uint32_t> wmoRefs;
+Normalized representation统一使用 world/relative height语义，不携带文件地址。
 
-    NormalizedLiquid liquid;
-};
+---
+
+## 7. MCNR / normals
+
+第一版：
+
+```text
+source packed normal
+ -> normalized Vec3
+ -> normalize vector
+ -> target packed normal
+```
+
+即使物理宽度相同，也不要把法线编码兼容性建立在 raw byte 假设上。
+
+Validator 应检查：
+
+```text
+length ≈ 1
+finite
+expected count
 ```
 
 ---
 
-# 4. 最大转换点：MH2O -> MCLQ
+# 8. MH2O -> MCLQ — 客户端必须执行
 
-3.3.5 地图常见新式液体系统：
+这是客户端 ADT retroport 的核心强制步骤。
+
+真实 Turtle terrain loader没有发现 WotLK MH2O 输入路径，而明确消费 legacy MCLQ。
+
+因此：
 
 ```text
-MH2O
+WotLK MH2O
+    -> parse liquid instances
+    -> normalize masks/heights/type
+    -> flatten target-inexpressible layers according to policy
+    -> generate legacy MCLQ per MCNK
+    -> update MCNK liquid flags
+    -> rebuild ofsMCLQ / sizeMCLQ
+    -> target ADT no longer depends on MH2O
 ```
 
-Vanilla 旧地图使用：
+不能：
 
 ```text
-MCLQ
-```
-
-正确转换不是：
-
-```text
-remove MH2O
-```
-
-而是：
-
-```text
-MH2O
- -> parse each MCNK liquid layer
- -> normalize liquid surfaces
- -> choose target legacy liquid category
- -> generate MCLQ payload
- -> update MCNK liquid flags
- -> rebuild MCNK offsets
+delete MH2O and emit empty MCLQ
 ```
 
 ---
 
-# 5. Normalized liquid
+## 9. Normalized liquid
 
-ADT 与 WMO 应共用同一个语义层：
+ADT 与 WMO 共用液体语义层：
 
 ```cpp
 enum class LiquidCategory
@@ -149,397 +259,521 @@ enum class LiquidCategory
     Slime,
     Unknown
 };
+```
 
-struct NormalizedLiquid
+```cpp
+struct NormalizedLiquidLayer
 {
+    uint16_t sourceLiquidType;
     LiquidCategory category;
 
-    int minX;
-    int minY;
-    int width;
-    int height;
+    uint8_t offsetX;
+    uint8_t offsetY;
+    uint8_t width;
+    uint8_t height;
 
-    std::vector<float> heights;
-    std::vector<uint8_t> tileFlags;
+    std::array<bool, 64> visible;
+    std::array<float, 81> heights;
 
-    uint32_t sourceLiquidType;
+    bool deep;
+    bool fishable;
 };
 ```
 
-然后：
+输入语义来自：
 
 ```text
-ADT MH2O
-WMO MLIQ
-     |
-     v
-LiquidTypeMapper
-     |
-     v
-Vanilla/Turtle liquid semantics
+MH2O
+LiquidType.dbc
+source map/group context
 ```
+
+输出为 target MCLQ / WMO legacy liquid category。
 
 ---
 
-# 6. MCLQ generator
+## 10. 多层液体 downgrade policy
 
-第一版 generator 需要完成：
+MH2O 的表达能力高于 Vanilla MCLQ。
 
-1. 根据 MH2O 有效区域确定 legacy liquid grid。
-2. 重建每个 liquid vertex 高度。
-3. 把 hole/empty tile 转成 target tile flags。
-4. 根据 LiquidType 映射 water/ocean/magma/slime。
-5. 生成 MCLQ。
-6. 更新 MCNK header 中 liquid 相关 flag / size / offset。
+Normalized model必须保留所有源 liquid layers，最后 writer 再决定 legacy flattening。
 
-必须对：
+若一个 target MCNK 无法无损表达：
 
-- 多层液体
-- 部分 tile 液体
-- 洞穴内液体
-- 海洋边界
+1. 选择 gameplay-visible principal layer。
+2. 保留其有效 tile mask与高度。
+3. 输出 `lossy-liquid-flatten` diagnostic。
+4. 不允许静默丢层。
 
-给出明确 downgrade policy。
-
-如果 target MCLQ 无法表示 source 多层液体：
-
-- 选择 gameplay-visible 主层
-- 产生 lossy warning
-- 不得静默丢失
+最终策略必须用实际 Northrend 多层样本回归。
 
 ---
 
-# 7. MCNK
+# 11. MCLY / MCAL — 规则已冻结
 
-MCNK 是 ADT writer 的核心。
-
-需要处理的典型子块：
+3.3.5a Reader必须支持：
 
 ```text
-MCVT - heights
-MCNR - normals
-MCLY - texture layers
-MCRF - model/WMO refs
-MCSH - shadows
-MCAL - alpha maps
-MCLQ - legacy liquid
+legacy 4-bit packed  : 2048 bytes/layer
+big-alpha raw 8-bit : 4096 bytes/layer
+big-alpha RLE       : variable -> 4096 decoded bytes
 ```
 
-不同版本可能还包含额外/不同子块。
-
-## Writer 规则
-
-每个 MCNK：
+输入提示：
 
 ```text
-build MCVT
-build MCNR
-build MCLY
-build MCRF
-build MCSH if needed
-build MCAL
-build MCLQ if liquid
-
-calculate every offset
-write MCNK header
-write subchunks
+WDT MPHD 0x4          big-alpha map mode
+MCLY 0x100            alpha present
+MCLY 0x200            RLE compressed
+actual layer span     corruption/flag fallback evidence
 ```
 
-禁止继承 source `ofsMCVT/ofsMCNR/...`。
-
----
-
-# 8. Heights / normals
-
-### Heights
-
-尽量直接保留 terrain vertex heights，不做重采样。
-
-Validator：
-
-- vertex count 符合 target MCNK 格式
-- NaN/Inf 禁止
-- terrain base position + relative height 不溢出
-
-### Normals
-
-如果两代法线编码不同：
-
-```text
-source packed normal
- -> float Vec3
- -> normalize
- -> target packed normal
-```
-
-不要对 packed bytes 做 bit-level 猜测复制。
-
----
-
-# 9. MCLY / MCAL
-
-Texture layer conversion 必须同时看：
-
-```text
-MCLY layer flags
-MCAL alpha payload
-MTEX texture table
-```
-
-不能只转换 MCLY。
-
-需要确认：
-
-- alpha map compression
-- high-res / low-res alpha layout
-- layer count
-- texture index
-- effect/flag fields
-
-建议 normalized layer：
+Normalized alpha：
 
 ```cpp
-struct TerrainLayer
-{
-    uint32_t textureIndex;
-    uint32_t semanticFlags;
-    int effectId;
-};
+std::array<uint8_t, 4096>
 ```
 
-Alpha map：
+目标统一写：
+
+```text
+packed 4-bit
+64 x 64 logical samples
+2048 bytes/layer
+low nibble first
+```
+
+8→4 默认最近量化：
 
 ```cpp
-struct AlphaMap
-{
-    int width;
-    int height;
-    std::vector<uint8_t> alpha;
-};
+q = (alpha + 8) / 17;
 ```
 
-先解码成统一 0..255，再重新编码 target MCAL。
+最大理论重建误差 ≤ 8。
+
+目标：
+
+```text
+MCLY 0x200 clear
+rebuild ofsAlpha
+rebuild MCAL payload
+```
+
+完整细节见 `ADT_MCAL_BINARY_ANALYSIS.md`。
 
 ---
 
-# 10. MCSH / holes
+## 12. MCNK bit15 / alpha edge semantics
 
-Shadow 和 terrain holes 都属于容易出现“地图能加载但视觉/碰撞错误”的区域。
+Turtle 真客户端确认：
 
-策略：
+```text
+MCNK flags bit15 = 1
+ -> full 64x64 alpha is meaningful
+ -> no legacy last-row/last-column fix
 
-- MCSH：先 normalize bitmask，再写 target。
-- holes：确认 source/target hole mask 粒度与位定义。
-- 不要只复制 raw flag word。
+bit15 = 0
+ -> decode 63x63
+ -> duplicate last row/column
+```
+
+Converter已经拥有完整 normalized 64x64 数据，因此目标第一版：
+
+```cpp
+targetMcnk.flags |= (1u << 15);
+```
+
+前提：MCAL 与 MCSH 的最后行/列都已 materialize/normalize。
 
 ---
 
-# 11. Resource name tables
+# 13. MCSH
 
-## M2
+MCSH 标准 legacy shadow mask：
+
+```text
+64 x 64 bits
+= 512 bytes
+```
+
+因 target bit15 被设置为 full-edge，Writer 不能依赖客户端复制 shadow 最后一行/列。
+
+因此：
+
+```text
+source shadow
+ -> normalize full 64x64
+ -> materialize legacy edge semantics if needed
+ -> write 512-byte target MCSH
+```
+
+---
+
+# 14. Holes — 不存在 32→16 空间降级
+
+此前的“WotLK uint32 holes → Vanilla uint16 holes”表述已被真实客户端推翻。
+
+3.3.5a build12340 真客户端函数：
+
+```text
+0x7C3B60
+```
+
+明确读取：
+
+```asm
+MOVZX EDI, WORD PTR [MCNK+0x3C]
+```
+
+并用16-entry mask table：
+
+```text
+0x0001 ... 0x8000
+```
+
+将 8×8 terrain quads按：
+
+```cpp
+bit = (y >> 1) * 4 + (x >> 1);
+```
+
+映射为4×4 coarse holes。
+
+所以：
+
+```cpp
+dst.holes = src.holesLowRes;
+```
+
+即可保持 hole topology。
+
+`+0x3E` 是独立 u16，不属于 hole mask 高位；第一版 canonical target可写0并对非零源值报警。
+
+详见 `ADT_HOLES_BINARY_ANALYSIS.md`。
+
+---
+
+# 15. Resource name tables
+
+M2：
 
 ```text
 MMDX = zero-terminated path blob
 MMID = offsets into MMDX
 ```
 
-## WMO
+WMO：
 
 ```text
 MWMO = zero-terminated path blob
 MWID = offsets into MWMO
 ```
 
-Writer 应从 normalized string vector **重新生成整个 string block 与 offset table**。
+Writer 从 normalized vector重建整个 string block与offset table，以支持：
 
-这样可以安全支持：
+- path normalization
+- extension normalization
+- converted output path remap
+- deduplication
+- dependency graph consistency
 
-- 路径规范化
-- 模型输出到新路径
-- 去重
-- extension 修正
-
----
-
-# 12. MDDF / MODF
-
-ADT placement 与实际转换后的 M2/WMO 必须同步。
-
-### MDDF
-
-至少归一化：
-
-```text
-name/reference index
-unique id
-position
-rotation
-scale
-flags
-```
-
-### MODF
-
-至少归一化：
-
-```text
-name/reference index
-unique id
-position
-rotation
-bounds
-doodad set
-name set
-flags
-```
-
-转换目标：
-
-```text
-source placement semantics
- -> normalized placement
- -> target record
-```
-
-不要只 memcpy，因为不同客户端/工具可能对 flags 或 scale 字段解释不同。
+禁止复制 source MMID/MWID offsets。
 
 ---
 
-# 13. Dependency graph
+# 16. MDDF / MODF
 
-一个 ADT conversion job 必须先建立完整依赖：
-
-```text
-ADT
- |- MTEX -> BLP
- |- MMDX/MMID -> M2
- |                `- BLP/SKIN/other M2 deps
- |- MWMO/MWID -> WMO
- |                `- doodad M2 -> BLP
- |- MDDF placements
- `- MODF placements
-```
-
-Converter 的批处理单元最好不是“单文件”，而是：
+已知物理基线：
 
 ```text
-Map Asset Graph
+MDDF = 36 bytes
+MODF = 64 bytes
 ```
 
-这样才能保证路径与引用同步。
+布局在 3.3.5 extractor 与旧目标体系间高度连续。
+
+第一版原则：
+
+- 保留 world placement position/rotation/scale。
+- name/reference index随重建后的 MMDX/MWMO 表更新。
+- unique ID尽量保留。
+- flags逐语义检查，不把源扩展bit原样复制。
+- MODF doodad set / name set保留并验证目标 WMO存在对应集合。
 
 ---
 
-# 14. WDT / WDL
+# 17. MCRF
 
-完整地图导入不能只处理 ADT。
+MCRF 引用的是 tile 内 placement index，不是文件路径。
 
-需要继续调查：
+由于 MDDF/MODF 可能重排/去重，Writer必须建立：
 
-- WDT map/tile flags
-- global WMO references
-- tile presence table
-- WDL low-res height / horizon data
+```text
+source MDDF index -> target MDDF index
+source MODF index -> target MODF index
+```
 
-第一版如果只转换单个已有 ADT，可先把 WDT/WDL 作为独立阶段；但完整地图转换最终必须支持。
+再重建每个 MCNK 的 doodad/WMO refs。
 
----
-
-# 15. ADT validator
-
-## Top-level
-
-- required chunks present
-- all chunk boundaries valid
-- exactly expected MCNK count for target format
-- MCIN points to valid MCNKs（若目标 writer 使用 MCIN）
-
-## Name tables
-
-- MMID offsets inside MMDX
-- MWID offsets inside MWMO
-- all paths zero-terminated
-
-## Placements
-
-- MDDF model index valid
-- MODF WMO index valid
-
-## MCNK
-
-- header offsets inside MCNK
-- MCVT count correct
-- MCNR count correct
-- MCLY layer count valid
-- MCAL payload matches layers
-- MCRF references valid
-- MCLQ payload matches liquid dimensions
+禁止在 placement table发生重排后原样复制 MCRF。
 
 ---
 
-# 16. 目标 extractor validation
+# 18. MCIN / offsets — 两遍写出
 
-生成 target ADT 后：
+目标 Writer采用 two-pass/backpatch。
+
+### Pass 1
+
+构造每个 MCNK：
+
+```text
+header placeholder
+MCVT
+MCNR
+MCLY
+MCRF
+MCSH
+MCAL
+MCSE
+MCLQ
+```
+
+记录实际布局。
+
+### Pass 2
+
+回填：
+
+```text
+MCNK internal offsets/sizes
+MCIN[256] offsets/sizes
+MHDR top-level offsets
+chunk sizes
+```
+
+所有 offsets必须落在最终文件范围内。
+
+---
+
+# 19. WDT — 普通 tile map 基本兼容，重新生成最稳
+
+TC 3.3.5 与 Tortoise source一致：
+
+```text
+MPHD = 8 dwords
+MAIN = 64 x 64 x 8 bytes
+```
+
+普通 map target Writer从实际输出 tile set重建 MAIN。
+
+Turtle/Vanilla runtime真正关键的 MPHD bit目前确认是：
+
+```text
+bit0 = WMO-only/global-WMO map
+```
+
+目标 MCAL已写成 legacy packed4，因此 canonical target：
+
+```text
+clear source big-alpha MPHD 0x4
+clear unknown WotLK-only flags
+```
+
+普通 terrain map：
+
+```text
+MPHD flags = 0
+```
+
+除非有明确 target flag需求。
+
+详见 `WDT_WDL_BINARY_ANALYSIS.md`。
+
+---
+
+# 20. WDL — 从 NormalizedADT 重建
+
+不要把 WDL 当必须 byte-retroport 的源文件。
+
+目标低分辨率 tile核心：
+
+```text
+17 x 17 outer heights = 289
+16 x 16 inner heights = 256
+--------------------------------
+545 x int16
+```
+
+MAOF：
+
+```text
+64 x 64 absolute offsets
+```
+
+推荐：
+
+```text
+NormalizedADT terrain
+ -> WdlGenerator
+ -> target WDL
+```
+
+这样绕开 3.3.5a WDL额外 root/global-object数据差异。
+
+精确 float→int16 WDL quantization仍需用已知 good fixture验证后冻结。
+
+---
+
+# 21. Dependency graph
+
+转换任务单位应是 Map Asset Graph：
+
+```text
+Map/WDT
+  |- ADT tiles
+  |   |- MTEX -> BLP
+  |   |- MMDX/MMID -> M2 -> SKIN/ANIM/BLP
+  |   |- MWMO/MWID -> WMO -> doodad M2 -> BLP
+  |   |- MDDF
+  |   `- MODF
+  `- WDL target regeneration
+```
+
+依赖先扫描，再做路径规划，最后写目标文件。
+
+---
+
+# 22. Client validator
+
+每个目标 ADT至少检查：
+
+### Top-level
+
+```text
+MVER/MHDR/MCIN存在
+256 MCNK
+all chunk boundaries in file
+```
+
+### tables
+
+```text
+MMID inside MMDX
+MWID inside MWMO
+all strings terminated
+```
+
+### MCNK
+
+```text
+indices x/y valid
+145 heights
+normal count valid
+layer count 1..4
+MCAL target maps each 2048B
+MCLY no compression bit in target
+MCSH exactly 512B when present
+holes is u16 coarse mask
+MCLQ offsets/sizes valid when liquid exists
+all refs valid
+```
+
+Writer完成后必须重新用 target parser打开自己的输出。
+
+---
+
+# 23. Server/extractor validator
+
+Converted client asset graph必须通过：
 
 ```text
 Tortoise map extractor
 Tortoise vmap extractor
-mmap generator
+Tortoise vmap assembler
+Tortoise mmap generator
 ```
 
-必须全部能处理输出资源。
-
-如果 extractor 失败，不进入 Turtle client runtime test。
+注意服务器 `.map` 推荐直接从 source MH2O reader生成，不以 target MCLQ作为唯一数据源。
 
 ---
 
-# 17. Runtime test matrix
+# 24. Runtime test matrix
 
-第一轮地图测试建议覆盖：
+第一批 fixtures：
 
-1. 无液体普通平地。
-2. 多 texture layer 地形。
-3. 有小湖的地形。
-4. 海岸 / ocean。
-5. magma/slime。
-6. 同时包含 M2 + WMO placements。
-7. WMO 内部还有 doodad M2。
-8. terrain holes。
+1. 单纹理、无液体、无 object 平地。
+2. 4-layer + alpha terrain。
+3. MCSH 边缘明显 terrain。
+4. 单 hole bit / 多 hole bit terrain。
+5. 小湖。
+6. ocean coastline。
+7. magma/slime。
+8. partial MH2O coverage。
+9. M2 placements。
+10. WMO placements + WMO doodads。
+11. 多 tile seam。
 
 检查：
 
 ```text
-terrain height
+visual terrain geometry
 texture alpha
+shadow edges
 holes
-liquid height/type
-M2 position/orientation
-WMO position/orientation
-collision
-LOS
-VMAP/MMAP extraction
+liquid render/swim/type
+M2/WMO transforms
+collision / LOS
+VMAP/MMAP
 ```
 
 ---
 
-# 18. 当前实现优先级
+# 25. 第一版实现优先级 — 当前版本
 
-1. 从 3.3.5 source/extractor 冻结 MH2O 读法。
-2. 从 Turtle/Vanilla target loader/extractor 冻结 MCLQ 目标结构。
-3. 写 `NormalizedLiquid`。
-4. 写 `Mh2oToMclq`。
-5. 写 MCNK offset rebuilder。
-6. 再处理 MCAL/MCLY。
-7. 最后串 resource tables + placements。
+已经研究冻结：
+
+```text
+[done] Turtle legacy ADT/MCLQ target loader
+[done] MCAL source modes + target packed4
+[done] MCNK bit15 alpha edge semantics
+[done] holes exact 16-bit spatial mapping
+[done] ordinary WDT target structure/policy
+[done] WDL regeneration architecture
+```
+
+接下来实际编码顺序：
+
+```text
+1. WotlkAdtReader
+2. NormalizedADT
+3. MH2O reader
+4. LiquidTypeMapper
+5. Mh2oToMclq
+6. MCAL decoder + Vanilla4 encoder
+7. MCSH normalizer
+8. VanillaMcnkWriter + offset rebuilder
+9. MMDX/MMID + MWMO/MWID rebuild
+10. MDDF/MODF/MCRF remap
+11. VanillaAdtWriter
+12. WdtWriter
+13. WdlGenerator
+14. Validators + fixtures
+```
 
 ---
 
-# 19. Source references
+# 26. Source references
 
-- Penqle/tortoise-wow:
-  - https://github.com/Penqle/tortoise-wow
-- TrinityCore 3.3.5:
-  - https://github.com/TrinityCore/TrinityCore/tree/3.3.5
-- warcraft-rs:
-  - https://github.com/wowemulation-dev/warcraft-rs
-- WoWDev community format documentation should be used as secondary reference only; target loader/extractor remains final authority.
+Primary implementation/research references：
+
+- Penqle/tortoise-wow
+- TrinityCore `3.3.5`
+- AzerothCore WotLK
+- wowdev/noggit3
+- wowdev/pywowlib
+- samwhosung/wow-1121-client-internals
+- user-provided WoW 3.3.5a build12340 `Wow.exe`
+- user-provided Turtle WoW 1.18.1 build7272 `WoW.exe`
+
+Community format documentation remains secondary; real target/source client behavior is final authority.
