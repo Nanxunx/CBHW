@@ -23,5 +23,9 @@ target_compile_options(turtle335_core PRIVATE
 add_executable(turtle335_core_tests tests/test_adt_core.cpp)
 target_link_libraries(turtle335_core_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_mcnk_tests tests/test_mcnk_writer.cpp)
+target_link_libraries(turtle335_mcnk_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
+add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
