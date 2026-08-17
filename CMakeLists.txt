@@ -14,6 +14,7 @@ add_library(turtle335_core
     src/adt/PlacementWriter.cpp
     src/adt/TerrainWriter.cpp
     src/adt/AdtWriter.cpp
+    src/adt/AdtValidator.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -25,6 +26,9 @@ target_compile_options(turtle335_core PRIVATE
 
 add_executable(turtle335_generate_fixture_a tools/generate_fixture_a.cpp)
 target_link_libraries(turtle335_generate_fixture_a PRIVATE turtle335_core)
+
+add_executable(turtle335_validate_adt tools/validate_adt.cpp)
+target_link_libraries(turtle335_validate_adt PRIVATE turtle335_core)
 
 add_executable(turtle335_core_tests tests/test_adt_core.cpp)
 target_link_libraries(turtle335_core_tests PRIVATE turtle335_core)
