@@ -62,22 +62,41 @@ int main()
         assert(mcnkSize == out.layout.mcnkSizes[slot]);
         assert(std::memcmp(out.bytes.data() + mcnkOffset, "KNCM", 4) == 0);
 
+        const std::uint32_t flags = ReadLe32(out.bytes.data() + mcnkOffset + 8u);
         const std::uint32_t ix = ReadLe32(out.bytes.data() + mcnkOffset + 12u);
         const std::uint32_t iy = ReadLe32(out.bytes.data() + mcnkOffset + 16u);
+        assert((flags & 0x3Cu) == 0);       // dry cell: no legacy liquid category bits
+        assert((flags & (1u << 15)) == 0); // canonical old-MCLQ target path
         assert(ix == slot % 16u);
         assert(iy == slot / 16u);
         assert(ReadLe32(out.bytes.data() + mcnkOffset + 20u) == 1); // nLayers
+        assert(ReadLe32(out.bytes.data() + mcnkOffset + 24u) == 0); // nDoodadRefs
+        assert(ReadLe32(out.bytes.data() + mcnkOffset + 64u) == 0); // nMapObjRefs
 
         const std::uint32_t ofsMcvt = ReadLe32(out.bytes.data() + mcnkOffset + 28u);
         const std::uint32_t ofsMcnr = ReadLe32(out.bytes.data() + mcnkOffset + 32u);
         const std::uint32_t ofsMcly = ReadLe32(out.bytes.data() + mcnkOffset + 36u);
+        const std::uint32_t ofsMcrf = ReadLe32(out.bytes.data() + mcnkOffset + 40u);
         const std::uint32_t ofsMcal = ReadLe32(out.bytes.data() + mcnkOffset + 44u);
         const std::uint32_t sizeMcal = ReadLe32(out.bytes.data() + mcnkOffset + 48u);
+        const std::uint32_t ofsMcse = ReadLe32(out.bytes.data() + mcnkOffset + 96u);
+        const std::uint32_t nSndEmitters = ReadLe32(out.bytes.data() + mcnkOffset + 100u);
+        const std::uint32_t ofsMclq = ReadLe32(out.bytes.data() + mcnkOffset + 104u);
+        const std::uint32_t sizeMclq = ReadLe32(out.bytes.data() + mcnkOffset + 108u);
+
         assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMcvt, "TVCM", 4) == 0);
         assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMcnr, "RNCM", 4) == 0);
         assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMcly, "YLCM", 4) == 0);
+        assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMcrf, "FRCM", 4) == 0);
+        assert(ReadLe32(out.bytes.data() + mcnkOffset + ofsMcrf + 4u) == 0);
         assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMcal, "LACM", 4) == 0);
         assert(sizeMcal == 8); // empty MCAL chunk for the base-only fixture
+        assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMcse, "ESCM", 4) == 0);
+        assert(ReadLe32(out.bytes.data() + mcnkOffset + ofsMcse + 4u) == 0);
+        assert(nSndEmitters == 0);
+        assert(std::memcmp(out.bytes.data() + mcnkOffset + ofsMclq, "QLCM", 4) == 0);
+        assert(ReadLe32(out.bytes.data() + mcnkOffset + ofsMclq + 4u) == 0);
+        assert(sizeMclq == 8);
     }
 
     std::cout << "turtle335_fixture_a_tests: OK bytes=" << out.bytes.size() << "\n";
