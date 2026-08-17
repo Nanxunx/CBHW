@@ -53,8 +53,9 @@ Mh2oParseResult ParseMh2oChunk(const std::uint8_t* data, std::size_t size, const
 {
     if (!data || size < 8)
         throw std::invalid_argument("MH2O chunk is missing or truncated");
-    if (data[0] != 'M' || data[1] != 'H' || data[2] != '2' || data[3] != 'O')
-        throw std::invalid_argument("expected MH2O chunk");
+    // ADT chunk FourCCs are stored reversed on disk: logical MH2O -> raw O2HM.
+    if (data[0] != 'O' || data[1] != '2' || data[2] != 'H' || data[3] != 'M')
+        throw std::invalid_argument("expected raw O2HM (logical MH2O) chunk");
 
     const std::size_t declaredPayloadSize = ReadU32(data + 4);
     if (declaredPayloadSize > size - 8)
