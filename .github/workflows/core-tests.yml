@@ -25,35 +25,46 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Debug --output-on-failure
 
-      - name: Generate Fixture A ADT
+      - name: Generate Fixture A map files
         if: runner.os == 'Linux'
-        run: ./build/turtle335_generate_fixture_a build/FixtureA_32_32.adt
+        run: |
+          ./build/turtle335_generate_fixture_wdt build/FixtureA.wdt
+          ./build/turtle335_generate_fixture_a build/FixtureA_32_32.adt
 
       - name: Validate generated Fixture A from disk
         if: runner.os == 'Linux'
-        run: ./build/turtle335_validate_adt build/FixtureA_32_32.adt | tee build/FixtureA_32_32.validation.txt
+        run: |
+          ./build/turtle335_validate_wdt build/FixtureA.wdt | tee build/FixtureA.wdt.validation.txt
+          ./build/turtle335_validate_adt build/FixtureA_32_32.adt | tee build/FixtureA_32_32.validation.txt
 
       - name: Record Fixture A SHA-256
         if: runner.os == 'Linux'
-        run: sha256sum build/FixtureA_32_32.adt | tee build/FixtureA_32_32.sha256
+        run: |
+          sha256sum build/FixtureA.wdt | tee build/FixtureA.wdt.sha256
+          sha256sum build/FixtureA_32_32.adt | tee build/FixtureA_32_32.sha256
 
-      - name: Upload Fixture A
+      - name: Upload Fixture A map skeleton
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: Turtle335Converter-FixtureA
           path: |
+            build/FixtureA.wdt
+            build/FixtureA.wdt.sha256
+            build/FixtureA.wdt.validation.txt
             build/FixtureA_32_32.adt
             build/FixtureA_32_32.sha256
             build/FixtureA_32_32.validation.txt
           if-no-files-found: error
 
-      - name: Upload Windows ADT tools
+      - name: Upload Windows map tools
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: Turtle335Converter-Windows-ADT-Tools
+          name: Turtle335Converter-Windows-Map-Tools
           path: |
             build/Debug/turtle335_validate_adt.exe
             build/Debug/turtle335_generate_fixture_a.exe
+            build/Debug/turtle335_validate_wdt.exe
+            build/Debug/turtle335_generate_fixture_wdt.exe
           if-no-files-found: error
