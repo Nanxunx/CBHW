@@ -10,6 +10,7 @@ add_library(turtle335_core
     src/adt/LegacyLiquid.cpp
     src/adt/MclqWriter.cpp
     src/adt/Mh2oReader.cpp
+    src/adt/McnkWriter.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
