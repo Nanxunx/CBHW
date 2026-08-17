@@ -1,12 +1,15 @@
 #include "turtle335/adt/Holes.h"
 #include "turtle335/adt/LegacyLiquid.h"
 #include "turtle335/adt/Mcal.h"
+#include "turtle335/adt/MclqWriter.h"
+#include "turtle335/adt/Mh2oReader.h"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <vector>
 
@@ -140,6 +143,125 @@ static void TestLiquidSharedVertexPayloadConflict()
     }));
 }
 
+static std::uint32_t ReadLe32(const std::uint8_t* p)
+{
+    return std::uint32_t(p[0]) |
+           (std::uint32_t(p[1]) << 8) |
+           (std::uint32_t(p[2]) << 16) |
+           (std::uint32_t(p[3]) << 24);
+}
+
+static void WriteLe16(std::vector<std::uint8_t>& b, std::size_t o, std::uint16_t v)
+{
+    b[o] = std::uint8_t(v & 0xFFu);
+    b[o + 1] = std::uint8_t(v >> 8);
+}
+
+static void WriteLe32(std::vector<std::uint8_t>& b, std::size_t o, std::uint32_t v)
+{
+    b[o] = std::uint8_t(v & 0xFFu);
+    b[o + 1] = std::uint8_t((v >> 8) & 0xFFu);
+    b[o + 2] = std::uint8_t((v >> 16) & 0xFFu);
+    b[o + 3] = std::uint8_t((v >> 24) & 0xFFu);
+}
+
+static void WriteLe64(std::vector<std::uint8_t>& b, std::size_t o, std::uint64_t v)
+{
+    for (int i = 0; i < 8; ++i)
+        b[o + i] = std::uint8_t((v >> (i * 8)) & 0xFFu);
+}
+
+static void WriteLeF32(std::vector<std::uint8_t>& b, std::size_t o, float f)
+{
+    std::uint32_t bits = 0;
+    static_assert(sizeof(bits) == sizeof(f));
+    std::memcpy(&bits, &f, sizeof(bits));
+    WriteLe32(b, o, bits);
+}
+
+static void TestMclqSerialization()
+{
+    auto water = MakeFlatLayer(LiquidCategory::Water, 0, 0, 1, 1, 12.5f);
+    const auto built = BuildLegacyMclq({water});
+    assert(built.mclq.has_value());
+
+    const auto payload = SerializeLegacyMclqPayload(*built.mclq);
+    const auto chunk = SerializeLegacyMclqChunk(*built.mclq);
+    static_assert(payload.size() == 804);
+    static_assert(chunk.size() == 812);
+    assert(chunk[0] == 'M' && chunk[1] == 'C' && chunk[2] == 'L' && chunk[3] == 'Q');
+    assert(ReadLe32(chunk.data() + 4) == 804);
+    assert(std::equal(payload.begin(), payload.end(), chunk.begin() + 8));
+
+    const std::size_t flagsOffset = 8 + 81 * 8;
+    assert(payload[flagsOffset] == 0x04);
+    assert(payload[flagsOffset + 1] == 0x0F);
+
+    const std::size_t flowOffset = flagsOffset + 64;
+    assert(ReadLe32(payload.data() + flowOffset) == 0);
+}
+
+static void TestMh2oReaderHeightDepth()
+{
+    constexpr std::size_t headerTable = 256 * 12;
+    constexpr std::size_t instanceOff = headerTable;
+    constexpr std::size_t attrOff = instanceOff + 24;
+    constexpr std::size_t existsOff = attrOff + 16;
+    constexpr std::size_t vertexOff = existsOff + 8;
+    constexpr std::size_t vertexCount = 4;
+    constexpr std::size_t payloadSize = vertexOff + vertexCount * 4 + vertexCount;
+
+    std::vector<std::uint8_t> chunk(8 + payloadSize, 0);
+    chunk[0] = 'M'; chunk[1] = 'H'; chunk[2] = '2'; chunk[3] = 'O';
+    WriteLe32(chunk, 4, payloadSize);
+
+    const std::size_t base = 8;
+    WriteLe32(chunk, base + 0, instanceOff);
+    WriteLe32(chunk, base + 4, 1);
+    WriteLe32(chunk, base + 8, attrOff);
+
+    WriteLe16(chunk, base + instanceOff + 0, 7);
+    WriteLe16(chunk, base + instanceOff + 2, 0);
+    WriteLeF32(chunk, base + instanceOff + 4, 10.0f);
+    WriteLeF32(chunk, base + instanceOff + 8, 13.0f);
+    chunk[base + instanceOff + 12] = 2;
+    chunk[base + instanceOff + 13] = 3;
+    chunk[base + instanceOff + 14] = 1;
+    chunk[base + instanceOff + 15] = 1;
+    WriteLe32(chunk, base + instanceOff + 16, existsOff);
+    WriteLe32(chunk, base + instanceOff + 20, vertexOff);
+
+    WriteLe64(chunk, base + attrOff, std::uint64_t{1} << (3 * 8 + 2));
+    WriteLe64(chunk, base + attrOff + 8, std::uint64_t{1} << (3 * 8 + 2));
+    WriteLe64(chunk, base + existsOff, 1);
+
+    const float heights[4] = {10.0f, 11.0f, 12.0f, 13.0f};
+    for (std::size_t i = 0; i < 4; ++i)
+        WriteLeF32(chunk, base + vertexOff + i * 4, heights[i]);
+    chunk[base + vertexOff + 16] = 10;
+    chunk[base + vertexOff + 17] = 20;
+    chunk[base + vertexOff + 18] = 30;
+    chunk[base + vertexOff + 19] = 40;
+
+    const auto parsed = ParseMh2oChunk(chunk.data(), chunk.size(), [](std::uint16_t id) {
+        assert(id == 7);
+        return LiquidCategory::Ocean;
+    });
+
+    assert(parsed.chunks[0].size() == 1);
+    const auto& p = parsed.chunks[0][0];
+    assert(p.metadata.sourceLiquidType == 7);
+    assert(p.metadata.sourceVertexFormat == Mh2oVertexFormat::HeightDepth);
+    assert(p.layer.category == LiquidCategory::Ocean);
+    assert(p.layer.offsetX == 2 && p.layer.offsetY == 3);
+    assert(p.layer.visible.size() == 1 && p.layer.visible[0]);
+    assert(p.layer.vertices.size() == 4);
+    assert(p.layer.vertices[3].height == 13.0f);
+    assert(p.layer.vertices[3].depth == 40);
+    assert((p.layer.deepMask >> (3 * 8 + 2)) & 1u);
+    assert((p.layer.fishableMask >> (3 * 8 + 2)) & 1u);
+}
+
 int main()
 {
     TestHoles();
@@ -149,6 +271,8 @@ int main()
     TestLiquidOverlapDiagnostic();
     TestLiquidSharedVertexConflict();
     TestLiquidSharedVertexPayloadConflict();
+    TestMclqSerialization();
+    TestMh2oReaderHeightDepth();
     std::cout << "turtle335_core_tests: OK\n";
     return 0;
 }
