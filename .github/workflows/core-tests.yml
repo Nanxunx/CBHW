@@ -29,6 +29,10 @@ jobs:
         if: runner.os == 'Linux'
         run: ./build/turtle335_generate_fixture_a build/FixtureA_32_32.adt
 
+      - name: Validate generated Fixture A from disk
+        if: runner.os == 'Linux'
+        run: ./build/turtle335_validate_adt build/FixtureA_32_32.adt | tee build/FixtureA_32_32.validation.txt
+
       - name: Record Fixture A SHA-256
         if: runner.os == 'Linux'
         run: sha256sum build/FixtureA_32_32.adt | tee build/FixtureA_32_32.sha256
@@ -41,4 +45,15 @@ jobs:
           path: |
             build/FixtureA_32_32.adt
             build/FixtureA_32_32.sha256
+            build/FixtureA_32_32.validation.txt
+          if-no-files-found: error
+
+      - name: Upload Windows ADT tools
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Turtle335Converter-Windows-ADT-Tools
+          path: |
+            build/Debug/turtle335_validate_adt.exe
+            build/Debug/turtle335_generate_fixture_a.exe
           if-no-files-found: error
