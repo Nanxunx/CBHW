@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 
 using namespace turtle335::adt;
@@ -18,40 +19,40 @@ static std::uint32_t ReadLe32(const std::uint8_t* p)
 
 int main()
 {
-    AdtWriterInput input;
-    input.textures = {"Tileset/Test/A.blp", "Tileset\\Test\\B.blp"};
+    auto input = std::make_unique<AdtWriterInput>();
+    input->textures = {"Tileset/Test/A.blp", "Tileset\\Test\\B.blp"};
 
     M2PlacementInput m2;
     m2.assetPath = "World/Generic/Test/TestModel.m2";
     m2.uniqueId = 100;
     m2.position = {1.0f, 2.0f, 3.0f};
     m2.rotation = {4.0f, 5.0f, 6.0f};
-    input.m2Placements.push_back(m2);
+    input->m2Placements.push_back(m2);
     auto m2DuplicatePath = m2;
     m2DuplicatePath.assetPath = "world\\generic\\test\\testmodel.m2";
     m2DuplicatePath.uniqueId = 101;
-    input.m2Placements.push_back(m2DuplicatePath);
+    input->m2Placements.push_back(m2DuplicatePath);
 
     WmoPlacementInput wmo;
     wmo.assetPath = "World/Wmo/Test/Test.wmo";
     wmo.uniqueId = 200;
     wmo.minimumExtent = {-10.0f, -20.0f, -30.0f};
     wmo.maximumExtent = {10.0f, 20.0f, 30.0f};
-    input.wmoPlacements.push_back(wmo);
+    input->wmoPlacements.push_back(wmo);
 
     for (std::uint32_t x = 0; x < 16; ++x)
     {
         for (std::uint32_t y = 0; y < 16; ++y)
         {
-            auto& cell = input.cells[x * 16 + y];
+            auto& cell = input->cells[x * 16 + y];
             cell.header.ix = x;
             cell.header.iy = y;
         }
     }
-    input.cells[0].m2Refs = {0, 1};
-    input.cells[0].wmoRefs = {0};
+    input->cells[0].m2Refs = {0, 1};
+    input->cells[0].wmoRefs = {0};
 
-    const auto out = SerializeVanillaAdt(input);
+    const auto out = SerializeVanillaAdt(*input);
     ValidateVanillaAdtRoot(out.bytes);
 
     assert(out.layout.mverOffset == 0);
@@ -111,21 +112,25 @@ int main()
     catch (...) { rejected = true; }
     assert(rejected);
 
-    // M2/WMO share the same ADT UniqueId namespace.
-    auto duplicateUid = input;
-    duplicateUid.wmoPlacements[0].uniqueId = 100;
-    rejected = false;
-    try { (void)SerializeVanillaAdt(duplicateUid); }
-    catch (const std::invalid_argument&) { rejected = true; }
-    assert(rejected);
+    // Heap copies avoid exceeding Windows' default 1 MiB test stack.
+    {
+        auto duplicateUid = std::make_unique<AdtWriterInput>(*input);
+        duplicateUid->wmoPlacements[0].uniqueId = 100;
+        rejected = false;
+        try { (void)SerializeVanillaAdt(*duplicateUid); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        assert(rejected);
+    }
 
     // MCRF cannot reference a placement outside MDDF/MODF.
-    auto badRef = input;
-    badRef.cells[0].m2Refs.push_back(99);
-    rejected = false;
-    try { (void)SerializeVanillaAdt(badRef); }
-    catch (const std::out_of_range&) { rejected = true; }
-    assert(rejected);
+    {
+        auto badRef = std::make_unique<AdtWriterInput>(*input);
+        badRef->cells[0].m2Refs.push_back(99);
+        rejected = false;
+        try { (void)SerializeVanillaAdt(*badRef); }
+        catch (const std::out_of_range&) { rejected = true; }
+        assert(rejected);
+    }
 
     std::cout << "turtle335_full_adt_tests: OK\n";
 }
