@@ -14,6 +14,7 @@ namespace {
 constexpr std::size_t kMcnkHeaderPayloadSize = 128;
 constexpr std::size_t kMcnkFirstSubchunkOffset = 8 + kMcnkHeaderPayloadSize;
 constexpr std::size_t kLegacyMcnrTailSize = 13;
+constexpr std::uint32_t kMcseEmitterSize = 0x1Cu;
 
 void WriteU16(std::vector<std::uint8_t>& out, std::size_t offset, std::uint16_t value)
 {
@@ -44,6 +45,13 @@ std::uint32_t CheckedU32(std::size_t value, const char* what)
     if (value > std::numeric_limits<std::uint32_t>::max())
         throw std::overflow_error(std::string(what) + " exceeds uint32 range");
     return static_cast<std::uint32_t>(value);
+}
+
+std::vector<std::uint8_t> MakeEmptyChunk(const char rawId[4])
+{
+    std::vector<std::uint8_t> out(8, 0);
+    std::memcpy(out.data(), rawId, 4);
+    return out;
 }
 
 void ValidateRawChunk(const std::vector<std::uint8_t>& chunk, const char rawId[4], const char* name)
@@ -103,6 +111,21 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
     ValidateRawChunk(subchunks.mcse, "ESCM", "MCSE");
     ValidateRawChunk(subchunks.mccv, "VCCM", "MCCV");
 
+    // Noggit's Vanilla/old-MCLQ save path keeps empty structural chunks rather
+    // than omitting them. Canonicalize that behavior here so every caller gets
+    // the same physical target MCNK, not only the full-ADT writer.
+    const std::vector<std::uint8_t> canonicalMcrf =
+        subchunks.mcrf.empty() ? MakeEmptyChunk("FRCM") : subchunks.mcrf;
+    const std::vector<std::uint8_t> canonicalMcse =
+        subchunks.mcse.empty() ? MakeEmptyChunk("ESCM") : subchunks.mcse;
+    const LegacyMclqBlock canonicalLiquid =
+        subchunks.mclq ? *subchunks.mclq : LegacyMclqBlock{};
+
+    const std::uint32_t mcsePayload = DeclaredPayloadSize(canonicalMcse);
+    if ((mcsePayload % kMcseEmitterSize) != 0)
+        throw std::invalid_argument("MCSE payload is not divisible by the 0x1C emitter size");
+    const std::uint32_t nSndEmitters = mcsePayload / kMcseEmitterSize;
+
     SerializedMcnk result;
     result.bytes.resize(kMcnkFirstSubchunkOffset, 0);
     result.bytes[0] = 'K';
@@ -115,8 +138,7 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
     std::uint32_t flags = input.flags & ~(0x01u | 0x3Cu | 0x40u | (1u << 15));
     if (!subchunks.mcsh.empty())
         flags |= 0x01u;
-    if (subchunks.mclq)
-        flags |= subchunks.mclq->mcnkLiquidFlags;
+    flags |= canonicalLiquid.mcnkLiquidFlags;
     if (!subchunks.mccv.empty())
         flags |= 0x40u;
 
@@ -129,25 +151,21 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
         result.bytes.insert(result.bytes.end(), kLegacyMcnrTailSize, 0);
     }
     AppendChunk(result.bytes, subchunks.mcly, result.layout.offsMCLY);
-    AppendChunk(result.bytes, subchunks.mcrf, result.layout.offsMCRF);
+    AppendChunk(result.bytes, canonicalMcrf, result.layout.offsMCRF);
     AppendChunk(result.bytes, subchunks.mcsh, result.layout.offsMCSH);
     if (!subchunks.mcsh.empty())
         result.layout.sizeMCSH = DeclaredPayloadSize(subchunks.mcsh);
     AppendChunk(result.bytes, subchunks.mcal, result.layout.offsMCAL);
     if (!subchunks.mcal.empty())
         result.layout.sizeMCAL = CheckedU32(subchunks.mcal.size(), "MCAL size");
-    AppendChunk(result.bytes, subchunks.mcse, result.layout.offsMCSE);
+    AppendChunk(result.bytes, canonicalMcse, result.layout.offsMCSE);
 
-    if (subchunks.mclq)
-    {
-        const std::vector<std::uint8_t> liquid = SerializeLegacyMclqBlock(*subchunks.mclq);
-        if (!liquid.empty())
-        {
-            result.layout.offsMCLQ = CheckedU32(result.bytes.size(), "MCLQ offset");
-            result.layout.sizeMCLQ = CheckedU32(liquid.size(), "MCLQ size");
-            result.bytes.insert(result.bytes.end(), liquid.begin(), liquid.end());
-        }
-    }
+    const std::vector<std::uint8_t> liquid = SerializeLegacyMclqBlock(canonicalLiquid);
+    if (liquid.empty())
+        throw std::logic_error("canonical old-MCLQ serializer returned no bytes");
+    result.layout.offsMCLQ = CheckedU32(result.bytes.size(), "MCLQ offset");
+    result.layout.sizeMCLQ = CheckedU32(liquid.size(), "MCLQ size");
+    result.bytes.insert(result.bytes.end(), liquid.begin(), liquid.end());
 
     AppendChunk(result.bytes, subchunks.mccv, result.layout.offsMCCV);
 
@@ -176,7 +194,7 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
     WriteU32(result.bytes, h + 80, input.predTex);
     WriteU32(result.bytes, h + 84, input.nEffectDoodad);
     WriteU32(result.bytes, h + 88, result.layout.offsMCSE);
-    WriteU32(result.bytes, h + 92, input.nSndEmitters);
+    WriteU32(result.bytes, h + 92, nSndEmitters);
     WriteU32(result.bytes, h + 96, result.layout.offsMCLQ);
     WriteU32(result.bytes, h + 100, result.layout.sizeMCLQ);
     WriteF32(result.bytes, h + 104, input.z);
