@@ -15,6 +15,7 @@ add_library(turtle335_core
     src/adt/TerrainWriter.cpp
     src/adt/AdtWriter.cpp
     src/adt/AdtValidator.cpp
+    src/adt/WdtWriter.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -27,8 +28,14 @@ target_compile_options(turtle335_core PRIVATE
 add_executable(turtle335_generate_fixture_a tools/generate_fixture_a.cpp)
 target_link_libraries(turtle335_generate_fixture_a PRIVATE turtle335_core)
 
+add_executable(turtle335_generate_fixture_wdt tools/generate_fixture_wdt.cpp)
+target_link_libraries(turtle335_generate_fixture_wdt PRIVATE turtle335_core)
+
 add_executable(turtle335_validate_adt tools/validate_adt.cpp)
 target_link_libraries(turtle335_validate_adt PRIVATE turtle335_core)
+
+add_executable(turtle335_validate_wdt tools/validate_wdt.cpp)
+target_link_libraries(turtle335_validate_wdt PRIVATE turtle335_core)
 
 add_executable(turtle335_core_tests tests/test_adt_core.cpp)
 target_link_libraries(turtle335_core_tests PRIVATE turtle335_core)
@@ -45,9 +52,13 @@ target_link_libraries(turtle335_terrain_tests PRIVATE turtle335_core)
 add_executable(turtle335_fixture_a_tests tests/test_fixture_a.cpp)
 target_link_libraries(turtle335_fixture_a_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_wdt_tests tests/test_wdt_writer.cpp)
+target_link_libraries(turtle335_wdt_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
 add_test(NAME turtle335_full_adt_tests COMMAND turtle335_full_adt_tests)
 add_test(NAME turtle335_terrain_tests COMMAND turtle335_terrain_tests)
 add_test(NAME turtle335_fixture_a_tests COMMAND turtle335_fixture_a_tests)
+add_test(NAME turtle335_wdt_tests COMMAND turtle335_wdt_tests)
