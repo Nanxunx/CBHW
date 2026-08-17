@@ -60,10 +60,11 @@ LegacyMclqPayloadBytes SerializeLegacyMclqPayload(const LegacyMclq& mclq)
 LegacyMclqChunkBytes SerializeLegacyMclqChunk(const LegacyMclq& mclq)
 {
     LegacyMclqChunkBytes bytes{};
-    bytes[0] = 'M';
-    bytes[1] = 'C';
-    bytes[2] = 'L';
-    bytes[3] = 'Q';
+    // ADT chunk FourCCs are stored reversed on disk: logical MCLQ -> raw QLCM.
+    bytes[0] = 'Q';
+    bytes[1] = 'L';
+    bytes[2] = 'C';
+    bytes[3] = 'M';
 
     std::uint8_t* sizeOut = bytes.data() + 4;
     WriteU32(sizeOut, 804u);
