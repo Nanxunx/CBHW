@@ -75,7 +75,7 @@ int main()
     assert(out.placements.m2NameIds[1] == 0);
     assert(ReadLe32(out.placements.mmid.data() + 4) == 4); // one uint32 offset payload
 
-    // First MCIN slot is cells[0][0]. The full writer owns MCRF and patches counts.
+    // First MCIN slot is cell (ix=0,iy=0). Full writer owns MCRF/counts.
     const std::size_t firstMcin = 84 + 8;
     assert(ReadLe32(out.bytes.data() + firstMcin + 0) == out.layout.mcnkOffsets[0]);
     assert(ReadLe32(out.bytes.data() + firstMcin + 4) == out.layout.mcnkSizes[0]);
@@ -92,11 +92,16 @@ int main()
     assert(ReadLe32(out.bytes.data() + firstMcnk + offsMcrf + 12) == 1);
     assert(ReadLe32(out.bytes.data() + firstMcnk + offsMcrf + 16) == 0);
 
-    // Slot x=1,y=0 is index 16, proving x-major MCIN cells[x][y] layout.
+    // MCIN is y-major: slot 1=(x=1,y=0), slot 16=(x=0,y=1).
+    const std::size_t slot1 = firstMcin + 1 * 16;
+    const std::size_t mcnk1 = ReadLe32(out.bytes.data() + slot1);
+    assert(ReadLe32(out.bytes.data() + mcnk1 + 12) == 1);
+    assert(ReadLe32(out.bytes.data() + mcnk1 + 16) == 0);
+
     const std::size_t slot16 = firstMcin + 16 * 16;
     const std::size_t mcnk16 = ReadLe32(out.bytes.data() + slot16);
-    assert(ReadLe32(out.bytes.data() + mcnk16 + 12) == 1);
-    assert(ReadLe32(out.bytes.data() + mcnk16 + 16) == 0);
+    assert(ReadLe32(out.bytes.data() + mcnk16 + 12) == 0);
+    assert(ReadLe32(out.bytes.data() + mcnk16 + 16) == 1);
 
     // Corrupt MCIN size must be detected by root validator.
     auto corrupt = out.bytes;
