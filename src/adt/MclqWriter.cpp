@@ -26,10 +26,23 @@ void WriteF32(std::uint8_t*& out, float value)
     WriteU32(out, bits);
 }
 
+LiquidCategory ExpectedCategory(std::size_t slot)
+{
+    constexpr std::array<LiquidCategory, 4> categories = {
+        LiquidCategory::Water,
+        LiquidCategory::Ocean,
+        LiquidCategory::Magma,
+        LiquidCategory::Slime
+    };
+    return categories.at(slot);
+}
+
 } // namespace
 
 LegacyMclqPayloadBytes SerializeLegacyMclqPayload(const LegacyMclq& mclq)
 {
+    if (!SlotForCategory(mclq.category))
+        throw std::invalid_argument("MCLQ record has unknown category");
     if (!std::isfinite(mclq.minHeight) || !std::isfinite(mclq.maxHeight) || mclq.minHeight > mclq.maxHeight)
         throw std::invalid_argument("invalid MCLQ min/max height");
 
@@ -60,17 +73,56 @@ LegacyMclqPayloadBytes SerializeLegacyMclqPayload(const LegacyMclq& mclq)
 LegacyMclqChunkBytes SerializeLegacyMclqChunk(const LegacyMclq& mclq)
 {
     LegacyMclqChunkBytes bytes{};
-    // ADT chunk FourCCs are stored reversed on disk: logical MCLQ -> raw QLCM.
     bytes[0] = 'Q';
     bytes[1] = 'L';
     bytes[2] = 'C';
     bytes[3] = 'M';
-
+    // Known-good Vanilla/Noggit convention: inner MCLQ chunk size is zero;
+    // MCNK.sizeMCLQ carries the complete 8 + 804*N size.
     std::uint8_t* sizeOut = bytes.data() + 4;
-    WriteU32(sizeOut, 804u);
+    WriteU32(sizeOut, 0u);
 
     const LegacyMclqPayloadBytes payload = SerializeLegacyMclqPayload(mclq);
     std::memcpy(bytes.data() + 8, payload.data(), payload.size());
+    return bytes;
+}
+
+std::vector<std::uint8_t> SerializeLegacyMclqBlock(const LegacyMclqBlock& block)
+{
+    const std::size_t count = LegacyMclqRecordCount(block);
+    if (count == 0)
+        return {};
+
+    std::vector<std::uint8_t> bytes(8 + count * LegacyMclqPayloadBytes{}.size(), 0);
+    bytes[0] = 'Q';
+    bytes[1] = 'L';
+    bytes[2] = 'C';
+    bytes[3] = 'M';
+    std::uint8_t* sizeOut = bytes.data() + 4;
+    WriteU32(sizeOut, 0u);
+
+    std::size_t outOffset = 8;
+    std::uint32_t expectedFlags = 0;
+    for (std::size_t slot = 0; slot < block.records.size(); ++slot)
+    {
+        if (!block.records[slot])
+            continue;
+
+        const LiquidCategory expected = ExpectedCategory(slot);
+        if (block.records[slot]->category != expected)
+            throw std::invalid_argument("MCLQ block record category does not match fixed slot");
+
+        const LegacyMclqPayloadBytes payload = SerializeLegacyMclqPayload(*block.records[slot]);
+        std::memcpy(bytes.data() + outOffset, payload.data(), payload.size());
+        outOffset += payload.size();
+        expectedFlags |= McnkLiquidFlag(expected);
+    }
+
+    if (expectedFlags != block.mcnkLiquidFlags)
+        throw std::invalid_argument("MCLQ block flags do not match record presence");
+    if (outOffset != bytes.size())
+        throw std::logic_error("MCLQ block serializer size mismatch");
+
     return bytes;
 }
 
