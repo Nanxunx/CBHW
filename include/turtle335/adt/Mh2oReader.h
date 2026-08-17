@@ -38,7 +38,8 @@ struct Mh2oParseResult
 
 using LiquidTypeResolver = std::function<LiquidCategory(std::uint16_t)>;
 
-// Parses one complete MH2O chunk including the 8-byte FourCC/size header.
+// Parses one complete raw ADT MH2O chunk including the 8-byte header.
+// On disk the logical FourCC MH2O is stored as bytes O2HM.
 // Offsets inside MH2O are interpreted relative to the payload start, matching
 // the build-12340 TC/AZ extractor convention (chunk start + 8 + offset).
 Mh2oParseResult ParseMh2oChunk(const std::uint8_t* data, std::size_t size, const LiquidTypeResolver& resolver);
