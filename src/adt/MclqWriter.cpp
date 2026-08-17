@@ -91,7 +91,18 @@ std::vector<std::uint8_t> SerializeLegacyMclqBlock(const LegacyMclqBlock& block)
 {
     const std::size_t count = LegacyMclqRecordCount(block);
     if (count == 0)
-        return {};
+    {
+        if (block.mcnkLiquidFlags != 0)
+            throw std::invalid_argument("empty MCLQ block cannot advertise MCNK liquid flags");
+        // Noggit/Vanilla convention for a dry MCNK in old-MCLQ mode:
+        // keep an 8-byte QLCM header with inner size 0 and MCNK.sizeLiquid=8.
+        std::vector<std::uint8_t> bytes(8, 0);
+        bytes[0] = 'Q';
+        bytes[1] = 'L';
+        bytes[2] = 'C';
+        bytes[3] = 'M';
+        return bytes;
+    }
 
     std::vector<std::uint8_t> bytes(8 + count * LegacyMclqPayloadBytes{}.size(), 0);
     bytes[0] = 'Q';
