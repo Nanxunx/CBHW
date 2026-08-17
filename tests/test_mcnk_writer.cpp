@@ -32,22 +32,20 @@ static std::vector<std::uint8_t> MakeRawChunk(const char rawId[4], std::size_t p
     return out;
 }
 
-static LegacyMclq MakeWater()
+static LiquidLayer MakeLayer(LiquidCategory category, float height)
 {
     LiquidLayer l;
-    l.category = LiquidCategory::Water;
+    l.category = category;
     l.width = 1;
     l.height = 1;
     l.visible = {true};
     l.vertices.resize(4);
     for (auto& v : l.vertices)
     {
-        v.height = 10.0f;
+        v.height = height;
         v.depth = 64;
     }
-    auto built = BuildLegacyMclq({l});
-    assert(built.mclq.has_value());
-    return *built.mclq;
+    return l;
 }
 
 int main()
@@ -65,6 +63,12 @@ int main()
     h.x = 8.0f;
     h.y = 9.0f;
 
+    auto water = MakeLayer(LiquidCategory::Water, 10.0f);
+    auto ocean = MakeLayer(LiquidCategory::Ocean, 20.0f);
+    const auto liquid = BuildLegacyMclqBlock({water, ocean});
+    assert(liquid.lossless);
+    assert(liquid.block.mcnkLiquidFlags == 0x0C);
+
     McnkSubchunks chunks;
     chunks.mcvt = MakeRawChunk("TVCM", 145 * 4);
     chunks.mcnr = MakeRawChunk("RNCM", 145 * 3);
@@ -72,7 +76,7 @@ int main()
     chunks.mcrf = MakeRawChunk("FRCM", 6 * 4);
     chunks.mcsh = MakeRawChunk("HSCM", 512);
     chunks.mcal = MakeRawChunk("LACM", 2048);
-    chunks.mclq = MakeWater();
+    chunks.mclq = liquid.block;
 
     const auto out = SerializeVanillaMcnk(h, chunks);
     assert(out.bytes.size() > 136);
@@ -81,7 +85,7 @@ int main()
 
     const std::size_t ph = 8;
     const std::uint32_t flags = ReadLe32(out.bytes.data() + ph + 0);
-    assert((flags & 0x04) != 0);
+    assert((flags & 0x3C) == 0x0C);
     assert((flags & (1u << 15)) != 0);
     assert(ReadLe32(out.bytes.data() + ph + 20) == 136);
     assert(ReadLe32(out.bytes.data() + ph + 36) == out.layout.offsMCAL);
@@ -89,9 +93,10 @@ int main()
     assert(ReadLe32(out.bytes.data() + ph + 44) == out.layout.offsMCSH);
     assert(ReadLe32(out.bytes.data() + ph + 48) == chunks.mcsh.size());
     assert(ReadLe32(out.bytes.data() + ph + 96) == out.layout.offsMCLQ);
-    assert(ReadLe32(out.bytes.data() + ph + 100) == 812);
+    assert(ReadLe32(out.bytes.data() + ph + 100) == 1616);
 
     assert(std::memcmp(out.bytes.data() + out.layout.offsMCVT, "TVCM", 4) == 0);
     assert(std::memcmp(out.bytes.data() + out.layout.offsMCAL, "LACM", 4) == 0);
     assert(std::memcmp(out.bytes.data() + out.layout.offsMCLQ, "QLCM", 4) == 0);
+    assert(ReadLe32(out.bytes.data() + out.layout.offsMCLQ + 4) == 0);
 }
