@@ -46,7 +46,7 @@ struct McnkSubchunks
     std::vector<std::uint8_t> mcal;
     std::vector<std::uint8_t> mcse;
     std::vector<std::uint8_t> mccv;
-    std::optional<LegacyMclq> mclq;
+    std::optional<LegacyMclqBlock> mclq;
 };
 
 struct McnkLayout
