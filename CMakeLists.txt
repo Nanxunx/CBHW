@@ -43,6 +43,9 @@ target_link_libraries(turtle335_validate_adt PRIVATE turtle335_core)
 add_executable(turtle335_validate_wdt tools/validate_wdt.cpp)
 target_link_libraries(turtle335_validate_wdt PRIVATE turtle335_core)
 
+add_executable(turtle335_convert_adt tools/convert_wotlk_adt.cpp)
+target_link_libraries(turtle335_convert_adt PRIVATE turtle335_core)
+
 add_executable(turtle335_core_tests tests/test_adt_core.cpp)
 target_link_libraries(turtle335_core_tests PRIVATE turtle335_core)
 
