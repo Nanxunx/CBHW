@@ -86,6 +86,9 @@ target_link_libraries(turtle335_liquid_type_dbc_tests PRIVATE turtle335_core)
 add_executable(turtle335_wotlk_wdt_reader_tests tests/test_wotlk_wdt_reader.cpp)
 target_link_libraries(turtle335_wotlk_wdt_reader_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_raw_wotlk_pipeline_tests tests/test_raw_wotlk_pipeline.cpp)
+target_link_libraries(turtle335_raw_wotlk_pipeline_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -100,3 +103,4 @@ add_test(NAME turtle335_wotlk_mcsh_normalizer_tests COMMAND turtle335_wotlk_mcsh
 add_test(NAME turtle335_wotlk_adt_normalizer_tests COMMAND turtle335_wotlk_adt_normalizer_tests)
 add_test(NAME turtle335_liquid_type_dbc_tests COMMAND turtle335_liquid_type_dbc_tests)
 add_test(NAME turtle335_wotlk_wdt_reader_tests COMMAND turtle335_wotlk_wdt_reader_tests)
+add_test(NAME turtle335_raw_wotlk_pipeline_tests COMMAND turtle335_raw_wotlk_pipeline_tests)
