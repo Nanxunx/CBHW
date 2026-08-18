@@ -38,8 +38,10 @@ struct WotlkMcnkHeader
     float x = 0.0f;
     float y = 0.0f;
 
-    std::uint32_t props = 0;
-    std::uint32_t effectId = 0;
+    // Noggit's build-12340 editor treats the final two dwords as unused.
+    // Keep them source-specific until a client-binary-backed downgrade exists.
+    std::uint32_t unused1 = 0;
+    std::uint32_t unused2 = 0;
 };
 
 struct WotlkMcnkRecord
