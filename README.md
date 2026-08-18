@@ -79,7 +79,8 @@ can be supplied explicitly.
 
 The reverse-engineering and conversion design is documented under `docs/research/`:
 
-- [Research Checkpoint](docs/research/RESEARCH_CHECKPOINT.md) — project-wide conclusions, evidence levels, architecture and current status.
+- [Current Project Memory](docs/research/PROJECT_MEMORY_CURRENT.md) — authoritative current conclusions and next-step priority; prefer this when older research notes conflict.
+- [Research Checkpoint](docs/research/RESEARCH_CHECKPOINT.md) — project-wide historical conclusions, evidence levels and architecture.
 - [M2 Retroport Spec](docs/research/M2_RETROPORT_SPEC.md) — MD20/M2 structure conversion, skins, animations, particles and validation.
 - [WMO Retroport Spec](docs/research/WMO_RETROPORT_SPEC.md) — root/group WMO conversion, MOMT, MOPY, second UV/color sets and MLIQ.
 - [ADT Retroport Spec](docs/research/ADT_RETROPORT_SPEC.md) — ADT/MCNK conversion, MH2O -> MCLQ, resource tables and placements.
