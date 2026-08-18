@@ -17,6 +17,7 @@ namespace {
 
 constexpr std::uint32_t kMclyUseAlpha = 0x100u;
 constexpr std::uint32_t kMclyAlphaCompressed = 0x200u;
+constexpr std::uint32_t kKnownSourceMclyMask = 0x7FFu;
 constexpr std::uint32_t kTargetSemanticMclyMask = 0x4FFu; // animation/glow/reflection, excludes writer-owned alpha bits
 constexpr std::uint32_t kDoNotFixAlphaMap = 1u << 15;
 
@@ -64,6 +65,11 @@ float ReadF32(const std::vector<std::uint8_t>& bytes, std::size_t offset, const 
     if (!std::isfinite(value))
         throw std::runtime_error(std::string(what) + " is non-finite");
     return value;
+}
+
+int SignedByte(std::uint8_t value) noexcept
+{
+    return value < 128u ? static_cast<int>(value) : static_cast<int>(value) - 256;
 }
 
 void ApplyLegacyEdgeFix(Alpha8& alpha)
@@ -137,9 +143,9 @@ WotlkTerrainNormalizationResult NormalizeWotlkTerrain(const WotlkMcnkRecord& cel
 
     for (std::size_t i = 0; i < terrain.normals.size(); ++i)
     {
-        const std::int8_t bx = static_cast<std::int8_t>(cell.mcnr[8u + i * 3u + 0u]);
-        const std::int8_t bz = static_cast<std::int8_t>(cell.mcnr[8u + i * 3u + 1u]);
-        const std::int8_t by = static_cast<std::int8_t>(cell.mcnr[8u + i * 3u + 2u]);
+        const int bx = SignedByte(cell.mcnr[8u + i * 3u + 0u]);
+        const int bz = SignedByte(cell.mcnr[8u + i * 3u + 1u]);
+        const int by = SignedByte(cell.mcnr[8u + i * 3u + 2u]);
         terrain.normals[i] = TerrainNormal{
             static_cast<float>(bx) / 127.0f,
             static_cast<float>(by) / 127.0f,
@@ -159,6 +165,8 @@ WotlkTerrainNormalizationResult NormalizeWotlkTerrain(const WotlkMcnkRecord& cel
         raw.effectId = ReadU32(cell.mcly, at + 12u, "MCLY effectId");
         if (raw.textureId >= sourceTextureCount)
             throw std::runtime_error("MCLY textureId exceeds source MTEX catalog");
+        if ((raw.flags & ~kKnownSourceMclyMask) != 0)
+            throw std::runtime_error("MCLY contains source flag bits outside the verified build-12340 mask");
         rawLayers[i] = raw;
 
         TerrainLayerInput layer;
