@@ -1,36 +1,42 @@
-# ModelPort Batch Harness V3 — Golden Reference
+# ModelPort Golden Reference — V3 已由 V4 取代
 
-目标仍然是标准 `MD20 v256`，没有 `.orange`、没有私有 Header、没有 Orange DLL 运行依赖。
+目标仍然是标准 `MD20 v256`；没有 `.orange`、没有私有 Header、没有 Orange DLL 运行依赖。
 
-## V3 新增
+## 重要纠错
 
-`animation_metadata_v3.py`
+第二批 13 个 Golden pairs 证明 V3 的一条假设错误：
 
-已经实现 Golden Reference 验证后的动画元数据规则：
+```text
+错误：Sequence.Index = physical sequence index
+正确：Sequence.Index = 原样保留 WotLK source Index
+```
 
-- Sequence Index 按真实 sequence index 写入
-- 自动生成 Classic AnimationLookup
-  - count = max(AnimationID)+1
-  - 缺失 = 0xFFFF
-  - lookup[AnimationID] = SequenceIndex
-- PlayableAnimationLookup 保持 226 项，但根据模型实际 AnimationID 更新
-- quaternion compressed `-1` 精确转 `+1.0f`
-- 保留已验证的 Legacy Range / Times / Keys
-- 不强制 16-byte alignment
+`AnimationLookup` 才使用 physical sequence index：
 
-`validate_animation_metadata_v3.py`
+```text
+count = max(AnimationID)+1
+missing = 0xFFFF
+lookup[AnimationID] = first physical sequence index
+```
 
-可在进客户端前拦截：
+因此 V3 repair/validator 已改成 fail-closed，禁止继续生成或认可猜测 Index 的模型。
 
-- Sequence Index 全零
-- AnimationLookup 缺失/过短
-- Playable 226 项异常
-- 当前模型实际动画 ID 没有写进 Playable
+## 当前版本
 
-## 当前状态
+请使用：
 
-Active Bone Animation 已从“盲猜格式”推进为：
+```text
+playable_lookup_v4.py
+animation_metadata_v4.py
+validate_animation_metadata_v4.py
+test_animation_metadata_v4.py
+```
 
-`REFERENCE_ALIGNED_IMPLEMENTATION_READY_FOR_GOLDEN_TEST`
+V4 还加入了从 build12340 `AnimationData.dbc` 生成 226-entry model-aware `PlayableAnimationLookup` 的规则。
 
-仍建议先用第二批 Golden Reference 验证规则泛化，再进行一次真实客户端 Animated Golden test。
+详细证据：
+
+```text
+docs/research/M2_GOLDEN_REFERENCE_SECOND_BATCH_V4_2026-08-19.md
+docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_0534.md
+```
