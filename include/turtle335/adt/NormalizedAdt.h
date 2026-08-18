@@ -57,7 +57,11 @@ struct NormalizedAdt
     std::vector<std::string> textures;
     std::vector<M2PlacementInput> m2Placements;
     std::vector<WmoPlacementInput> wmoPlacements;
-    std::array<NormalizedAdtCell, 256> cells;
+
+    // A normalized cell owns large 145-vertex semantic arrays. Keep the fixed
+    // 256-cell invariant while allocating those cells outside the parent object
+    // so return values and converter locals remain safe on Windows.
+    std::vector<NormalizedAdtCell> cells = std::vector<NormalizedAdtCell>(256);
 
     // Optional complete target-compatible MFBO chunk. MFBO conversion itself
     // remains a separate semantic task and is not silently copied by readers.
