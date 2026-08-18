@@ -16,6 +16,7 @@ add_library(turtle335_core
     src/adt/NormalizedAdt.cpp
     src/adt/WotlkAdtReader.cpp
     src/adt/WotlkTerrainNormalizer.cpp
+    src/adt/WotlkMcshNormalizer.cpp
     src/adt/WotlkAdtNormalizer.cpp
     src/adt/AdtWriter.cpp
     src/adt/AdtValidator.cpp
@@ -73,6 +74,9 @@ target_link_libraries(turtle335_wotlk_adt_reader_tests PRIVATE turtle335_core)
 add_executable(turtle335_wotlk_terrain_normalizer_tests tests/test_wotlk_terrain_normalizer.cpp)
 target_link_libraries(turtle335_wotlk_terrain_normalizer_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_wotlk_mcsh_normalizer_tests tests/test_wotlk_mcsh_normalizer.cpp)
+target_link_libraries(turtle335_wotlk_mcsh_normalizer_tests PRIVATE turtle335_core)
+
 add_executable(turtle335_wotlk_adt_normalizer_tests tests/test_wotlk_adt_normalizer.cpp)
 target_link_libraries(turtle335_wotlk_adt_normalizer_tests PRIVATE turtle335_core)
 
@@ -92,6 +96,7 @@ add_test(NAME turtle335_wdt_tests COMMAND turtle335_wdt_tests)
 add_test(NAME turtle335_normalized_adt_tests COMMAND turtle335_normalized_adt_tests)
 add_test(NAME turtle335_wotlk_adt_reader_tests COMMAND turtle335_wotlk_adt_reader_tests)
 add_test(NAME turtle335_wotlk_terrain_normalizer_tests COMMAND turtle335_wotlk_terrain_normalizer_tests)
+add_test(NAME turtle335_wotlk_mcsh_normalizer_tests COMMAND turtle335_wotlk_mcsh_normalizer_tests)
 add_test(NAME turtle335_wotlk_adt_normalizer_tests COMMAND turtle335_wotlk_adt_normalizer_tests)
 add_test(NAME turtle335_liquid_type_dbc_tests COMMAND turtle335_liquid_type_dbc_tests)
 add_test(NAME turtle335_wotlk_wdt_reader_tests COMMAND turtle335_wotlk_wdt_reader_tests)
