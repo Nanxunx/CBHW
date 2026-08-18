@@ -52,6 +52,11 @@ AdtWriterInput BuildAdtWriterInput(const NormalizedAdt& input,
         target.header.props = source.props;
         target.header.effectId = source.effectId;
 
+        // TerrainWriter consumes full 64x64 semantic alpha maps and emits all
+        // packed target samples. Optional targetMcsh is contractually already a
+        // full-edge target chunk. Tell Turtle not to synthesize edge 63.
+        target.header.fullAlphaShadowEdges = true;
+
         const SerializedTerrain terrain = SerializeLegacyTerrain(source.terrain, input.textures.size());
         ApplyTerrainToMcnk(terrain, target.header, target.subchunks);
 
