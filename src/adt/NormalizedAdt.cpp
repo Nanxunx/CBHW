@@ -71,7 +71,6 @@ AdtWriterInput BuildAdtWriterInput(const NormalizedAdt& input,
 
         target.subchunks.mcsh = source.targetMcsh;
         target.subchunks.mcse = source.targetMcse;
-        target.subchunks.mccv = source.targetMccv;
         target.m2Refs = source.m2Refs;
         target.wmoRefs = source.wmoRefs;
     }
