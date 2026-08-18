@@ -20,6 +20,7 @@ add_library(turtle335_core
     src/adt/AdtWriter.cpp
     src/adt/AdtValidator.cpp
     src/adt/WdtWriter.cpp
+    src/adt/WotlkWdtReader.cpp
     src/dbc/LiquidTypeDbc.cpp
 )
 
@@ -75,6 +76,9 @@ target_link_libraries(turtle335_wotlk_adt_normalizer_tests PRIVATE turtle335_cor
 add_executable(turtle335_liquid_type_dbc_tests tests/test_liquid_type_dbc.cpp)
 target_link_libraries(turtle335_liquid_type_dbc_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_wotlk_wdt_reader_tests tests/test_wotlk_wdt_reader.cpp)
+target_link_libraries(turtle335_wotlk_wdt_reader_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -87,3 +91,4 @@ add_test(NAME turtle335_wotlk_adt_reader_tests COMMAND turtle335_wotlk_adt_reade
 add_test(NAME turtle335_wotlk_terrain_normalizer_tests COMMAND turtle335_wotlk_terrain_normalizer_tests)
 add_test(NAME turtle335_wotlk_adt_normalizer_tests COMMAND turtle335_wotlk_adt_normalizer_tests)
 add_test(NAME turtle335_liquid_type_dbc_tests COMMAND turtle335_liquid_type_dbc_tests)
+add_test(NAME turtle335_wotlk_wdt_reader_tests COMMAND turtle335_wotlk_wdt_reader_tests)
