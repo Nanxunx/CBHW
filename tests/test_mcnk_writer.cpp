@@ -51,7 +51,7 @@ static LiquidLayer MakeLayer(LiquidCategory category, float height)
 int main()
 {
     McnkTargetHeader h;
-    h.flags = 0x8000; // source-side do_not_fix_alpha_map must be cleared by target writer
+    h.flags = 0x8000; // raw source-side bit15 must never pass through implicitly
     h.ix = 3;
     h.iy = 5;
     h.nLayers = 2;
@@ -87,7 +87,7 @@ int main()
     const std::size_t ph = 8;
     const std::uint32_t flags = ReadLe32(out.bytes.data() + ph + 0);
     assert((flags & 0x3C) == 0x0C);
-    assert((flags & (1u << 15)) == 0); // old-MCLQ canonical path
+    assert((flags & (1u << 15)) == 0); // raw bit15 was cleared; semantic control is separate
     assert((flags & 0x01u) != 0);      // MCSH present
     assert((flags & 0x40u) != 0);      // MCCV present
 
@@ -107,4 +107,9 @@ int main()
     assert(std::memcmp(out.bytes.data() + out.layout.offsMCAL, "LACM", 4) == 0);
     assert(std::memcmp(out.bytes.data() + out.layout.offsMCLQ, "QLCM", 4) == 0);
     assert(ReadLe32(out.bytes.data() + out.layout.offsMCLQ + 4) == 0);
+
+    h.fullAlphaShadowEdges = true;
+    const auto fullEdges = SerializeVanillaMcnk(h, chunks);
+    const std::uint32_t fullFlags = ReadLe32(fullEdges.bytes.data() + ph);
+    assert((fullFlags & (1u << 15)) != 0);
 }
