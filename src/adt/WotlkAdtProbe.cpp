@@ -51,6 +51,24 @@ std::size_t RawPayloadSize(const std::vector<std::uint8_t>& chunk,
     return payload;
 }
 
+bool HasLegacyMclqBlock(const std::vector<std::uint8_t>& chunk)
+{
+    if (chunk.empty())
+        return false;
+    if (chunk.size() < 8u)
+        throw std::runtime_error("MCLQ is shorter than a chunk header");
+    if (std::memcmp(chunk.data(), "QLCM", 4) != 0)
+        throw std::runtime_error("MCLQ raw FourCC mismatch");
+
+    const std::uint32_t innerPayload = ReadU32(chunk, 4u, "MCLQ inner size");
+    // Legacy MCLQ may deliberately keep the inner size at zero while the
+    // owning MCNK.sizeMCLQ describes the complete 8+804*N block copied by the
+    // source reader. A nonzero inner size must still agree with the bytes.
+    if (innerPayload != 0 && static_cast<std::size_t>(innerPayload) + 8u != chunk.size())
+        throw std::runtime_error("MCLQ inner size disagrees with MCNK-owned block bytes");
+    return chunk.size() > 8u || innerPayload != 0;
+}
+
 bool AnyNonZero(const std::array<std::uint8_t, 8>& bytes)
 {
     return std::any_of(bytes.begin(), bytes.end(), [](std::uint8_t value) { return value != 0; });
@@ -342,8 +360,7 @@ WotlkAdtProbeReport ProbeWotlkAdt(const WotlkAdtDocument& source,
                          "source MCSE is present; target emitter field semantics are not yet production-approved");
             }
 
-            const std::size_t mclqPayload = RawPayloadSize(cell.mclq, "QLCM", "MCLQ");
-            if (mclqPayload != 0 || (cell.header.flags & 0x3Cu) != 0)
+            if (HasLegacyMclqBlock(cell.mclq) || (cell.header.flags & 0x3Cu) != 0)
                 ++report.cellsWithLegacyMclq;
         }
         catch (const std::exception& error)
