@@ -45,7 +45,10 @@ struct NormalizedAdtCell
     // WotLK chunk into the normalized semantic model and call it portable.
     std::vector<std::uint8_t> targetMcsh;
     std::vector<std::uint8_t> targetMcse;
-    std::vector<std::uint8_t> targetMccv;
+
+    // No targetMccv field on purpose. Turtle's real MCNK pointer-fixup does not
+    // process offsMCCV, so WotLK MCCV remains a documented source loss until a
+    // separate target-client path is proven by binary/fixture evidence.
 };
 
 struct NormalizedAdt
