@@ -99,6 +99,7 @@ int main()
         const std::uint32_t nMapObjRefs = ReadLe32(built.adt.bytes.data() + firstMcnk + 64u);
         const std::uint32_t sizeMclq = ReadLe32(built.adt.bytes.data() + firstMcnk + 108u);
         assert((flags & 0x04u) != 0);
+        assert((flags & (1u << 15)) != 0); // production NormalizedAdt emits full 64x64 MCAL/MCSH edges
         assert(nDoodadRefs == 1);
         assert(nMapObjRefs == 1);
         assert(sizeMclq == 812u);
