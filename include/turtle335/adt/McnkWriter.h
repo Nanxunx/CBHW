@@ -33,6 +33,11 @@ struct McnkTargetHeader
 
     std::uint32_t props = 0;
     std::uint32_t effectId = 0;
+
+    // Target semantic control for MCNK bit15. Set only when MCAL and, if
+    // present, MCSH already contain meaningful full 64x64 edge samples. Turtle
+    // then consumes those edges instead of synthesizing row/column 63 from 62.
+    bool fullAlphaShadowEdges = false;
 };
 
 struct McnkSubchunks
