@@ -47,7 +47,7 @@ float ReadF32(const std::vector<std::uint8_t>& bytes, std::size_t offset, const 
     const std::uint32_t bits = ReadU32(bytes, offset, what);
     float value = 0.0f;
     static_assert(sizeof(bits) == sizeof(value));
-    std::memcpy(&value, &bits, sizeof(value));
+    std::memcpy(&value, &bits, sizeof(bits));
     if (!std::isfinite(value))
         throw std::runtime_error(std::string(what) + " is non-finite");
     return value;
@@ -290,8 +290,12 @@ AdtValidationReport ValidateVanillaAdt(const std::vector<std::uint8_t>& bytes)
             throw std::runtime_error("MCIN y-major slot disagrees with MCNK ix/iy");
         if (nLayers == 0 || nLayers > 4)
             throw std::runtime_error("canonical terrain MCNK must have 1..4 layers");
-        if ((flags & (1u << 15)) != 0)
-            throw std::runtime_error("canonical old-MCLQ MCNK must clear do_not_fix_alpha_map bit15");
+
+        // MCNK bit15 is an edge-decoding mode, not a format-invalidity bit.
+        // bit15=0 asks the legacy client to synthesize row/column 63 from 62;
+        // bit15=1 tells it that all 64x64 alpha/shadow edge samples are already
+        // meaningful. The structural validator accepts either valid mode. The
+        // production NormalizedAdt path separately locks full-edge output to 1.
 
         const std::size_t ofsMcvt = ReadU32(bytes, mcnkOffset + 28, "MCNK offsMCVT");
         const std::size_t ofsMcnr = ReadU32(bytes, mcnkOffset + 32, "MCNK offsMCNR");
