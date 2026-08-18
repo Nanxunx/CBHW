@@ -111,9 +111,6 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
     ValidateRawChunk(subchunks.mcse, "ESCM", "MCSE");
     ValidateRawChunk(subchunks.mccv, "VCCM", "MCCV");
 
-    // Noggit's Vanilla/old-MCLQ save path keeps empty structural chunks rather
-    // than omitting them. Canonicalize that behavior here so every caller gets
-    // the same physical target MCNK, not only the full-ADT writer.
     const std::vector<std::uint8_t> canonicalMcrf =
         subchunks.mcrf.empty() ? MakeEmptyChunk("FRCM") : subchunks.mcrf;
     const std::vector<std::uint8_t> canonicalMcse =
@@ -133,23 +130,22 @@ SerializedMcnk SerializeVanillaMcnk(const McnkTargetHeader& input, const McnkSub
     result.bytes[2] = 'C';
     result.bytes[3] = 'M';
 
-    // Canonical Vanilla/Turtle writer owns these physical-presence flags.
-    // Noggit's old-MCLQ save path clears do_not_fix_alpha_map (bit 15).
+    // Physical-presence flags are writer-owned. Bit15 is semantic: when the
+    // caller says full 64x64 alpha/shadow edges are materialized, preserve them
+    // by telling Turtle not to synthesize row/column 63 from 62.
     std::uint32_t flags = input.flags & ~(0x01u | 0x3Cu | 0x40u | (1u << 15));
     if (!subchunks.mcsh.empty())
         flags |= 0x01u;
     flags |= canonicalLiquid.mcnkLiquidFlags;
     if (!subchunks.mccv.empty())
         flags |= 0x40u;
+    if (input.fullAlphaShadowEdges)
+        flags |= (1u << 15);
 
     AppendChunk(result.bytes, subchunks.mcvt, result.layout.offsMCVT);
     AppendChunk(result.bytes, subchunks.mcnr, result.layout.offsMCNR);
     if (!subchunks.mcnr.empty())
-    {
-        // Blizzard/Noggit legacy ADTs carry 13 bytes after the 435-byte MCNR
-        // payload. They are outside MCNR's declared size but inside MCNK.
         result.bytes.insert(result.bytes.end(), kLegacyMcnrTailSize, 0);
-    }
     AppendChunk(result.bytes, subchunks.mcly, result.layout.offsMCLY);
     AppendChunk(result.bytes, canonicalMcrf, result.layout.offsMCRF);
     AppendChunk(result.bytes, subchunks.mcsh, result.layout.offsMCSH);
