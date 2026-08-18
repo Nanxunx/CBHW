@@ -37,6 +37,16 @@ static std::vector<std::uint8_t> RawChunk(const char id[4], std::size_t payload)
     return out;
 }
 
+static std::vector<std::uint8_t> LegacyMclqBlock()
+{
+    std::vector<std::uint8_t> out(8u + 804u, 0);
+    std::memcpy(out.data(), "QLCM", 4);
+    // Blizzard/Noggit legacy form: inner size remains zero; MCNK.sizeMCLQ
+    // owns the full 812-byte block length.
+    WriteLe32(out, 4, 0);
+    return out;
+}
+
 static std::vector<std::uint8_t> Mcly(std::uint32_t layers, std::uint32_t secondFlags = 0)
 {
     std::vector<std::uint8_t> out = RawChunk("YLCM", static_cast<std::size_t>(layers) * 16u);
@@ -126,6 +136,8 @@ int main()
     source.cells[6].header.disableDoodadsMap[0] = 1;
     source.cells[6].header.unused1 = 1;
 
+    source.cells[7].mclq = LegacyMclqBlock();
+
     source.mh2o = MinimalMh2o();
 
     const WotlkAdtProbeReport report = ProbeWotlkAdt(source, false);
@@ -150,6 +162,7 @@ int main()
     assert(report.cellsWithMcsh == 1);
     assert(report.cellsWithMccv == 1);
     assert(report.cellsWithMcse == 1);
+    assert(report.cellsWithLegacyMclq == 1);
     assert(report.soundEmitterCount == 1);
     assert(report.cellsHighResolutionHoles == 1);
     assert(report.cellsNonzeroField3E == 1);
