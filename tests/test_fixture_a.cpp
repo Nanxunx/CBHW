@@ -84,7 +84,7 @@ int main()
         const std::uint32_t ix = ReadLe32(out.bytes.data() + mcnkOffset + 12u);
         const std::uint32_t iy = ReadLe32(out.bytes.data() + mcnkOffset + 16u);
         assert((flags & 0x3Cu) == 0);       // dry cell: no legacy liquid category bits
-        assert((flags & (1u << 15)) == 0); // canonical old-MCLQ target path
+        assert((flags & (1u << 15)) == 0); // low-level writer default preserves legacy edge-fix mode
         assert(ix == slot % 16u);
         assert(iy == slot / 16u);
         assert(ReadLe32(out.bytes.data() + mcnkOffset + 20u) == 1); // nLayers
@@ -120,14 +120,13 @@ int main()
     const std::size_t firstMcnk = out.layout.mcnkOffsets[0];
     const std::size_t firstMcly = firstMcnk + ReadLe32(out.bytes.data() + firstMcnk + 36u);
 
-    // Corruption case 1: old-MCLQ canonical path must reject bit15.
+    // Compatibility case 1: bit15=1 is also structurally valid. It means the
+    // client must consume all 64x64 MCAL/MCSH edge samples instead of fixing
+    // row/column 63 from 62. Production NormalizedAdt locks this mode explicitly.
     {
-        auto bad = out.bytes;
-        bad[firstMcnk + 9u] |= 0x80u; // little-endian bit15
-        bool rejected = false;
-        try { (void)ValidateVanillaAdt(bad); }
-        catch (const std::runtime_error&) { rejected = true; }
-        assert(rejected);
+        auto fullEdge = out.bytes;
+        fullEdge[firstMcnk + 9u] |= 0x80u; // little-endian bit15
+        (void)ValidateVanillaAdt(fullEdge);
     }
 
     // Corruption case 2: MCLY textureId must resolve through MTEX.
