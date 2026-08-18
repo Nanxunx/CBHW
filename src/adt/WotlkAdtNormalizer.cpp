@@ -31,6 +31,26 @@ std::uint32_t RawPayloadSize(const std::vector<std::uint8_t>& chunk, const char*
     return size;
 }
 
+bool HasLegacyMclqBlock(const std::vector<std::uint8_t>& chunk)
+{
+    if (chunk.empty())
+        return false;
+    if (chunk.size() < 8u)
+        throw std::runtime_error("MCLQ raw block is truncated");
+    if (std::memcmp(chunk.data(), "QLCM", 4) != 0)
+        throw std::runtime_error("MCLQ raw FourCC mismatch");
+
+    const std::uint32_t innerPayload = static_cast<std::uint32_t>(chunk[4]) |
+                                       (static_cast<std::uint32_t>(chunk[5]) << 8) |
+                                       (static_cast<std::uint32_t>(chunk[6]) << 16) |
+                                       (static_cast<std::uint32_t>(chunk[7]) << 24);
+    // Legacy files may legally store zero here while MCNK.sizeMCLQ owns the
+    // full 8+804*N length. Nonzero inner sizes must still agree with the bytes.
+    if (innerPayload != 0 && static_cast<std::size_t>(innerPayload) + 8u != chunk.size())
+        throw std::runtime_error("MCLQ inner size disagrees with copied MCNK block size");
+    return chunk.size() > 8u || innerPayload != 0;
+}
+
 bool AnyNonZero(const std::array<std::uint8_t, 8>& bytes)
 {
     return std::any_of(bytes.begin(), bytes.end(), [](std::uint8_t value) { return value != 0; });
@@ -166,7 +186,7 @@ WotlkAdtNormalizationResult NormalizeWotlkAdt(const WotlkAdtDocument& source,
             NormalizeWotlkTerrain(src, source.textures.size(), sourceWdtBigAlpha);
         dst.terrain = terrain.terrain;
 
-        const bool sourceLegacyLiquid = (src.header.flags & 0x3Cu) != 0 || RawPayloadSize(src.mclq, "MCLQ") != 0;
+        const bool sourceLegacyLiquid = (src.header.flags & 0x3Cu) != 0 || HasLegacyMclqBlock(src.mclq);
         if (haveMh2o)
         {
             if (sourceLegacyLiquid)
