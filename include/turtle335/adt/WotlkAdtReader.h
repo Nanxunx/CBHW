@@ -26,8 +26,12 @@ struct WotlkMcnkHeader
     std::uint16_t legacy3E = 0;
 
     std::array<std::uint8_t, 16> lowQualityTextureMap{};
-    std::uint32_t predTex = 0;
-    std::uint32_t nEffectDoodad = 0;
+
+    // WotLK/Noggit interpretation of the following eight raw bytes. Do not
+    // alias-copy these into Vanilla predTex/nEffectDoodad: target semantics are
+    // different and require an explicit downgrade policy.
+    std::array<std::uint8_t, 8> disableDoodadsMap{};
+
     std::uint32_t nSndEmitters = 0;
 
     float z = 0.0f;
