@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace turtle335::adt {
@@ -352,14 +354,15 @@ WotlkAdtDocument ParseWotlkAdt(const std::vector<std::uint8_t>& bytes)
         std::copy_n(bytes.begin() + static_cast<std::ptrdiff_t>(mcnkOffset + 72u),
                     16u,
                     cell.header.lowQualityTextureMap.begin());
-        cell.header.predTex = ReadU32(bytes, mcnkOffset + 88u, "MCNK predTex");
-        cell.header.nEffectDoodad = ReadU32(bytes, mcnkOffset + 92u, "MCNK nEffectDoodad");
+        std::copy_n(bytes.begin() + static_cast<std::ptrdiff_t>(mcnkOffset + 88u),
+                    8u,
+                    cell.header.disableDoodadsMap.begin());
         cell.header.nSndEmitters = ReadU32(bytes, mcnkOffset + 100u, "MCNK nSndEmitters");
         cell.header.z = ReadF32(bytes, mcnkOffset + 112u, "MCNK zpos");
         cell.header.x = ReadF32(bytes, mcnkOffset + 116u, "MCNK xpos");
         cell.header.y = ReadF32(bytes, mcnkOffset + 120u, "MCNK ypos");
-        cell.header.props = ReadU32(bytes, mcnkOffset + 128u, "MCNK props");
-        cell.header.effectId = ReadU32(bytes, mcnkOffset + 132u, "MCNK effectId");
+        cell.header.unused1 = ReadU32(bytes, mcnkOffset + 128u, "MCNK unused1");
+        cell.header.unused2 = ReadU32(bytes, mcnkOffset + 132u, "MCNK unused2");
 
         const std::uint32_t offsMCVT = ReadU32(bytes, mcnkOffset + 28u, "MCNK offsMCVT");
         const std::uint32_t offsMCNR = ReadU32(bytes, mcnkOffset + 32u, "MCNK offsMCNR");
