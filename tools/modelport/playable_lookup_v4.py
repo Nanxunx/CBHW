@@ -1,67 +1,76 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Classic/Turtle MD20 v256 PlayableAnimationLookup generator.
+"""Classic/Turtle MD20 v256 PlayableAnimationLookup generator (Golden V4).
 
-Validated against 16 successful 3.3.5a -> 1.12 Golden M2 pairs.
-The target table is model-aware: 226 records of int16 animation_id + int16 flags.
+Evidence:
+- successful 1.12 Golden M2 targets supplied by this project
+- historical LKBC fallback graph used only as a cross-check/base
+
+Important correction over the earlier V4 draft:
+Do NOT derive this table directly from build12340 AnimationData.dbc field 5.
+That reproduced many cases but not the successful FelReaver/Sunwell targets.
+The graph below is the historical 226-era fallback graph plus extension edges
+observed directly in successful 1.12 Golden targets.
 """
 from __future__ import annotations
 import struct
-from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 PLAYABLE_COUNT = 226
 
-# Successful Golden targets require these legacy routes although the build12340
-# DBC fallback field is zero for them.
-GOLDEN_FALLBACK_OVERRIDES = {
-    172: 16,
-    174: 16,
-    181: 16,
-    191: 159,
+LEGACY_FALLBACK: Dict[int, int] = {
+    0:147, 6:1, 8:25, 9:8, 10:9, 13:4, 17:16, 18:17, 19:18, 20:8,
+    21:8, 22:8, 23:8, 24:8, 26:25, 27:25, 28:25, 30:8, 32:16, 33:32,
+    36:8, 42:4, 45:42, 51:52, 52:31, 53:54, 54:33, 55:16, 57:17,
+    58:18, 59:87, 71:100, 85:17, 86:19, 87:88, 88:16, 95:16,
+    97:96, 98:96, 100:99, 101:99, 107:16, 115:114, 116:114,
+    117:87, 118:57, 119:4, 123:128, 124:52, 125:31, 129:128,
+    131:1, 132:131, 135:42, 136:62, 137:14, 138:63, 141:115,
+    143:5, 146:0, 147:146, 148:146, 149:148, 150:148, 151:150,
+    152:150, 187:5, 188:50, 189:50, 196:1, 197:69, 199:61,
+    203:115, 208:60, 209:84, 210:113, 211:69, 212:16,
+    223:119, 224:127,
 }
+
+# Required to reproduce all 13 second-batch successful targets exactly.
+GOLDEN_FALLBACK_EXTENSIONS: Dict[int, int] = {
+    170:16,
+    171:16,
+    172:16,
+    173:16,
+    174:16,
+    175:30,
+    176:16,
+    178:16,
+    179:16,
+    181:16,
+    191:159,
+}
+
+FALLBACK: Dict[int, int] = dict(LEGACY_FALLBACK)
+FALLBACK.update(GOLDEN_FALLBACK_EXTENSIONS)
 
 PLAY_THEN_STOP = {6, 97, 100, 115, 123, 132, 188}
 PLAY_BACKWARDS = {13, 45, 101, 189}
 
 
-def load_build12340_fallbacks(animation_data_dbc: Path) -> Dict[int, int]:
-    """Read build12340 AnimationData.dbc: field0=ID, field5=Fallback."""
-    d = animation_data_dbc.read_bytes()
-    if len(d) < 20 or d[:4] != b"WDBC":
-        raise ValueError("AnimationData.dbc is not WDBC")
-    record_count, field_count, record_size, string_size = struct.unpack_from("<4I", d, 4)
-    if field_count != 8 or record_size != 32:
-        raise ValueError(
-            f"expected build12340 AnimationData 8x4 layout, got fields={field_count} record_size={record_size}"
-        )
-    if 20 + record_count * record_size + string_size > len(d):
-        raise ValueError("truncated AnimationData.dbc")
-
-    out: Dict[int, int] = {}
-    for i in range(record_count):
-        rec = struct.unpack_from("<8I", d, 20 + i * record_size)
-        anim_id = rec[0]
-        if anim_id < PLAYABLE_COUNT:
-            out[anim_id] = rec[5]
-    out.update(GOLDEN_FALLBACK_OVERRIDES)
-    return out
-
-
-def resolve_fallback(requested_id: int, present_animation_ids: set[int], fallbacks: Dict[int, int]) -> int:
-    current = requested_id
+def resolve_fallback(requested_id: int, present_animation_ids: set[int], fallbacks: Dict[int, int] | None = None) -> int:
+    graph = FALLBACK if fallbacks is None else fallbacks
+    current = int(requested_id)
     seen: set[int] = set()
     while current not in present_animation_ids:
         if current in seen:
             return 0
         seen.add(current)
-        current = fallbacks.get(current, 0)
+        if current < 0 or current >= PLAYABLE_COUNT:
+            return 0
+        current = int(graph.get(current, 0))
     return current
 
 
 def build_playable_records(
     present_animation_ids: Iterable[int],
-    fallbacks: Dict[int, int],
+    fallbacks: Dict[int, int] | None = None,
 ) -> List[Tuple[int, int]]:
     present = set(int(x) for x in present_animation_ids)
     records: List[Tuple[int, int]] = []
@@ -83,10 +92,10 @@ def serialize_playable(records: Sequence[Tuple[int, int]]) -> bytes:
     return b"".join(struct.pack("<hh", int(anim_id), int(flags)) for anim_id, flags in records)
 
 
-def build_playable_bytes(present_animation_ids: Iterable[int], animation_data_dbc: Path) -> bytes:
-    return serialize_playable(
-        build_playable_records(
-            present_animation_ids,
-            load_build12340_fallbacks(animation_data_dbc),
-        )
-    )
+def build_playable_bytes(present_animation_ids: Iterable[int], animation_data_dbc=None) -> bytes:
+    """Build the 226-record table.
+
+    `animation_data_dbc` is accepted only for backward API compatibility with
+    the earlier V4 helper. Golden V4 no longer derives the graph from it.
+    """
+    return serialize_playable(build_playable_records(present_animation_ids))
