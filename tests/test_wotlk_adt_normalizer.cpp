@@ -59,8 +59,8 @@ static std::vector<std::uint8_t> BuildMh2o()
     WriteLe32(chunk, base + 4, 1);
     WriteLe32(chunk, base + 8, static_cast<std::uint32_t>(attrOff));
 
-    WriteLe16(chunk, base + instanceOff + 0, 7); // fixture LiquidType.dbc ID
-    WriteLe16(chunk, base + instanceOff + 2, 0); // HeightDepth
+    WriteLe16(chunk, base + instanceOff + 0, 7);
+    WriteLe16(chunk, base + instanceOff + 2, 0);
     WriteLeF32(chunk, base + instanceOff + 4, 51.0f);
     WriteLeF32(chunk, base + instanceOff + 8, 52.0f);
     chunk[base + instanceOff + 12] = 0;
@@ -70,8 +70,8 @@ static std::vector<std::uint8_t> BuildMh2o()
     WriteLe32(chunk, base + instanceOff + 16, static_cast<std::uint32_t>(existsOff));
     WriteLe32(chunk, base + instanceOff + 20, static_cast<std::uint32_t>(vertexOff));
 
-    WriteLe64(chunk, base + attrOff + 0, 1); // fishable cell 0
-    WriteLe64(chunk, base + attrOff + 8, 1); // deep/fatigue cell 0
+    WriteLe64(chunk, base + attrOff + 0, 1);
+    WriteLe64(chunk, base + attrOff + 8, 1);
     WriteLe64(chunk, base + existsOff, 1);
 
     for (std::size_t i = 0; i < vertexCount; ++i)
@@ -80,6 +80,24 @@ static std::vector<std::uint8_t> BuildMh2o()
         chunk[base + vertexOff + vertexCount * 4u + i] = static_cast<std::uint8_t>(100u + i);
     }
     return chunk;
+}
+
+static std::vector<std::uint8_t> BuildMcsh()
+{
+    std::vector<std::uint8_t> chunk(8u + 512u, 0);
+    std::memcpy(chunk.data(), "HSCM", 4);
+    WriteLe32(chunk, 4, 512u);
+    // Row 10 / column 62. With source bit15 clear the normalizer must copy it
+    // into column 63 before handing the full-edge chunk to the target writer.
+    const std::size_t bit = 10u * 64u + 62u;
+    chunk[8u + bit / 8u] |= static_cast<std::uint8_t>(1u << (bit % 8u));
+    return chunk;
+}
+
+static bool McshBit(const std::vector<std::uint8_t>& chunk, std::size_t x, std::size_t y)
+{
+    const std::size_t bit = y * 64u + x;
+    return ((chunk[8u + bit / 8u] >> (bit % 8u)) & 1u) != 0;
 }
 
 static std::unique_ptr<NormalizedAdt> MakeDrySemanticSource()
@@ -152,6 +170,28 @@ int main()
         assert(report.mcnkCount == 256);
         assert(report.m2PlacementCount == 1);
         assert(report.liquidRecordCount == 1);
+    }
+
+    {
+        WotlkAdtDocument source = MakeSourceDocument();
+        source.cells[0].header.flags &= ~(1u << 15);
+        source.cells[0].header.flags |= 0x01u;
+        source.cells[0].mcsh = BuildMcsh();
+        const auto normalized = NormalizeWotlkAdt(
+            source,
+            [](std::uint16_t) { return LiquidCategory::Ocean; },
+            false);
+        assert(normalized.ready);
+        assert(normalized.lossless);
+        assert(normalized.adt.cells[0].targetMcsh.size() == 520u);
+        assert(McshBit(normalized.adt.cells[0].targetMcsh, 62, 10));
+        assert(McshBit(normalized.adt.cells[0].targetMcsh, 63, 10));
+
+        const NormalizedAdtBuildResult target = SerializeNormalizedAdt(normalized.adt);
+        const WotlkAdtDocument reparsed = ParseWotlkAdt(target.adt.bytes);
+        assert(reparsed.cells[0].mcsh.size() == 520u);
+        assert((reparsed.cells[0].header.flags & (1u << 15)) != 0);
+        assert(McshBit(reparsed.cells[0].mcsh, 63, 10));
     }
 
     {
