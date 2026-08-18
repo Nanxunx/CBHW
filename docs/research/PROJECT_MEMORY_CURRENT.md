@@ -4,6 +4,13 @@
 
 本文件是 `NansenCore/Turtle335Converter` 当前优先读取的项目记忆。旧的 `PROJECT_MEMORY_2026-08-18.md` 保留为历史记录；若两者冲突，以本文件、最新专题文档、真实客户端二进制和当前源码为准。
 
+## 当前用户指令
+
+- 本项目属于“模型移植”长期项目，后续相关对话继续沿用本文件中的证据、架构和实现进度。
+- 用户要求“继续”时直接推进，不重复询问已经确定的目标和基础约束。
+- 当前最高优先级仍是**真实 WoW 3.3.5a build12340 fixture 验证**；在没有真实 `ADT/WDT/LiquidType.dbc` 输入时，不把时间耗在 speculative chunk 上，应优先完善真实 fixture 扫描/诊断/批处理能力和编译验证入口。
+- 2026-08-18 本轮已搜索当前会话上传与 File Library，没有找到可直接作为真实 build12340 `ADT/WDT/LiquidType.dbc` fixture 的文件。因此继续工程推进，但仍把真实 fixture 保留为 P0 验证门槛。
+
 ## 目标
 
 ```text
