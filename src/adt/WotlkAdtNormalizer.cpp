@@ -1,5 +1,6 @@
 #include "turtle335/adt/WotlkAdtNormalizer.h"
 
+#include "turtle335/adt/WotlkMcshNormalizer.h"
 #include "turtle335/adt/WotlkTerrainNormalizer.h"
 
 #include <algorithm>
@@ -148,8 +149,7 @@ WotlkAdtNormalizationResult NormalizeWotlkAdt(const WotlkAdtDocument& source,
 
         if (RawPayloadSize(src.mcsh, "MCSH") != 0)
         {
-            AddIssue(result, WotlkAdtIssueSeverity::Loss, slot, "DroppedMcsh",
-                     "source terrain shadow map is not yet normalized to target full-edge MCSH");
+            dst.targetMcsh = NormalizeWotlkMcsh(src.mcsh, (src.header.flags & (1u << 15)) != 0);
         }
         if (RawPayloadSize(src.mccv, "MCCV") != 0)
         {
