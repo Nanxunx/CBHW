@@ -70,8 +70,10 @@ const char* SeverityName(adt::WotlkAdtIssueSeverity severity)
 void Usage(const char* exe)
 {
     std::cerr
-        << "Usage:\n  " << exe
-        << " <source.adt> <LiquidType.dbc> <output.adt> [--wdt <source.wdt>] [--allow-lossy]\n";
+        << "Convert:\n  " << exe
+        << " <source.adt> <LiquidType.dbc> <output.adt> [--wdt <source.wdt>] [--allow-lossy]\n\n"
+        << "Scan only (no file written):\n  " << exe
+        << " <source.adt> <LiquidType.dbc> [--wdt <source.wdt>] --scan-only\n";
 }
 
 } // namespace
@@ -80,7 +82,7 @@ int main(int argc, char** argv)
 {
     try
     {
-        if (argc < 4)
+        if (argc < 3)
         {
             Usage(argv[0]);
             return 64;
@@ -88,16 +90,25 @@ int main(int argc, char** argv)
 
         const fs::path sourceAdt = fs::absolute(argv[1]);
         const fs::path liquidDbc = fs::absolute(argv[2]);
-        const fs::path outputAdt = fs::absolute(argv[3]);
+        fs::path outputAdt;
         fs::path sourceWdt;
         bool allowLossy = false;
+        bool scanOnly = false;
 
-        for (int i = 4; i < argc; ++i)
+        int i = 3;
+        if (i < argc && std::string(argv[i]).rfind("--", 0) != 0)
+            outputAdt = fs::absolute(argv[i++]);
+
+        for (; i < argc; ++i)
         {
             const std::string arg = argv[i];
             if (arg == "--allow-lossy")
             {
                 allowLossy = true;
+            }
+            else if (arg == "--scan-only")
+            {
+                scanOnly = true;
             }
             else if (arg == "--wdt" && i + 1 < argc)
             {
@@ -110,7 +121,12 @@ int main(int argc, char** argv)
             }
         }
 
-        if (sourceAdt == outputAdt)
+        if (!scanOnly && outputAdt.empty())
+        {
+            Usage(argv[0]);
+            throw std::invalid_argument("conversion mode requires an output ADT path");
+        }
+        if (!outputAdt.empty() && sourceAdt == outputAdt)
             throw std::invalid_argument("source and target ADT paths must differ");
 
         const dbc::LiquidTypeDbc liquidTypes = dbc::ParseLiquidTypeDbc(ReadFile(liquidDbc));
@@ -142,11 +158,6 @@ int main(int argc, char** argv)
             std::cerr << "Conversion blocked: source contains semantics without a verified target mapping.\n";
             return 2;
         }
-        if (!normalized.lossless && !allowLossy)
-        {
-            std::cerr << "Conversion is lossy. Re-run with --allow-lossy only after reviewing every LOSS above.\n";
-            return 3;
-        }
 
         const adt::NormalizedAdtBuildResult built = adt::SerializeNormalizedAdt(normalized.adt);
         for (const adt::NormalizedAdtDiagnostic& diagnostic : built.diagnostics)
@@ -154,13 +165,28 @@ int main(int argc, char** argv)
             std::cerr << "LOSS [LegacyLiquid] MCNK-slot=" << diagnostic.cellSlot
                       << ": " << diagnostic.liquid.message << '\n';
         }
-        if (!built.lossless && !allowLossy)
+
+        const bool completelyLossless = normalized.lossless && built.lossless;
+        const adt::AdtValidationReport report = adt::ValidateVanillaAdt(built.adt.bytes);
+
+        if (scanOnly)
         {
-            std::cerr << "Target legacy liquid flattening is lossy; output was not written.\n";
+            std::cout << "SCAN source=" << sourceAdt.string() << '\n'
+                      << "MCNK=" << report.mcnkCount
+                      << " textures=" << report.textureCount
+                      << " M2=" << report.m2PlacementCount
+                      << " WMO=" << report.wmoPlacementCount
+                      << " liquid-records=" << report.liquidRecordCount << '\n'
+                      << "result=" << (completelyLossless ? "lossless" : "lossy") << '\n';
+            return completelyLossless ? 0 : 3;
+        }
+
+        if (!completelyLossless && !allowLossy)
+        {
+            std::cerr << "Conversion is lossy. Re-run with --allow-lossy only after reviewing every LOSS above.\n";
             return 3;
         }
 
-        const adt::AdtValidationReport report = adt::ValidateVanillaAdt(built.adt.bytes);
         WriteAtomicNewFile(outputAdt, built.adt.bytes);
 
         std::cout << "Converted ADT written: " << outputAdt.string() << '\n'
@@ -169,7 +195,7 @@ int main(int argc, char** argv)
                   << " M2=" << report.m2PlacementCount
                   << " WMO=" << report.wmoPlacementCount
                   << " liquid-records=" << report.liquidRecordCount << '\n'
-                  << "normalization=" << (normalized.lossless && built.lossless ? "lossless" : "lossy-allowed") << '\n';
+                  << "normalization=" << (completelyLossless ? "lossless" : "lossy-allowed") << '\n';
         return 0;
     }
     catch (const std::exception& error)
