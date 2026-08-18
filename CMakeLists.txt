@@ -14,6 +14,7 @@ add_library(turtle335_core
     src/adt/PlacementWriter.cpp
     src/adt/TerrainWriter.cpp
     src/adt/NormalizedAdt.cpp
+    src/adt/WotlkAdtReader.cpp
     src/adt/AdtWriter.cpp
     src/adt/AdtValidator.cpp
     src/adt/WdtWriter.cpp
@@ -59,6 +60,9 @@ target_link_libraries(turtle335_wdt_tests PRIVATE turtle335_core)
 add_executable(turtle335_normalized_adt_tests tests/test_normalized_adt.cpp)
 target_link_libraries(turtle335_normalized_adt_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_wotlk_adt_reader_tests tests/test_wotlk_adt_reader.cpp)
+target_link_libraries(turtle335_wotlk_adt_reader_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -67,3 +71,4 @@ add_test(NAME turtle335_terrain_tests COMMAND turtle335_terrain_tests)
 add_test(NAME turtle335_fixture_a_tests COMMAND turtle335_fixture_a_tests)
 add_test(NAME turtle335_wdt_tests COMMAND turtle335_wdt_tests)
 add_test(NAME turtle335_normalized_adt_tests COMMAND turtle335_normalized_adt_tests)
+add_test(NAME turtle335_wotlk_adt_reader_tests COMMAND turtle335_wotlk_adt_reader_tests)
