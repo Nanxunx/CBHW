@@ -5,6 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace turtle335::dbc {
@@ -54,6 +55,8 @@ LiquidTypeDbc ParseLiquidTypeDbc(const std::vector<std::uint8_t>& bytes)
 
     if (fieldCount < 4u)
         throw std::runtime_error("LiquidType.dbc has fewer than four fields");
+    if (fieldCount > std::numeric_limits<std::uint32_t>::max() / 4u)
+        throw std::runtime_error("LiquidType.dbc field count overflows a WDBC record size");
     if (recordSize != fieldCount * 4u)
         throw std::runtime_error("LiquidType.dbc WDBC record size does not equal fieldCount*4");
 
