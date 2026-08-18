@@ -2,12 +2,17 @@
 # -*- coding: utf-8 -*-
 """Golden Reference V4 animation metadata helpers.
 
-Critical correction over V3:
-- M2Sequence.Index is NOT the physical sequence position.
-- Preserve the WotLK source Index field exactly.
-- AnimationLookup independently maps AnimationID -> FIRST PHYSICAL sequence index.
+V4 evidence-driven rules:
+- Preserve the WotLK source Sequence.Index/aliasNext value exactly.
+- Rebuild AnimationLookup independently from Sequence.Index.
+- AnimationLookup count = max(AnimationID)+1, missing=0xFFFF.
+- For duplicate AnimationID, prefer SubAnimationID==0; if none exists use the
+  first physical occurrence.
+- Rebuild the 226-record PlayableAnimationLookup using playable_lookup_v4.
+- Preserve the validated 3333-ms Classic sequence timeline construction.
+- Exact quaternion compressed short -1 endpoint becomes float +1.0.
 
-Repairing a previously lossy target therefore requires the original v264 M2.
+No Orange/private wrapper is produced; output remains standard MD20 v256.
 """
 from __future__ import annotations
 import struct
@@ -34,6 +39,8 @@ def parse_wotlk_sequences(d: bytes) -> List[dict]:
             "sub_animation_id": sub_id,
             "length": length,
             "index": index,
+            # moveSpeed through Index is layout-compatible after the Classic
+            # start/end pair inserts four bytes before it.
             "raw_tail_from_move_speed": d[o + 8:o + 64],
         })
     return out
@@ -64,16 +71,27 @@ def parse_classic_sequences(d: bytes) -> List[dict]:
 
 
 def build_animation_lookup(source_sequences: Sequence[dict]) -> bytes:
-    """AnimationID -> first PHYSICAL sequence index, missing=0xFFFF."""
+    """Build Classic AnimationID -> physical sequence position lookup.
+
+    Golden duplicate rule:
+      1) choose the first SubAnimationID==0 entry for an AnimationID;
+      2) if no sub=0 exists, choose the first physical occurrence.
+    """
     if not source_sequences:
         return b""
     count = max(int(s["animation_id"]) for s in source_sequences) + 1
     lookup = [0xFFFF] * count
+
     for s in source_sequences:
         anim_id = int(s["animation_id"])
-        physical_index = int(s["physical_index"])
+        if int(s["sub_animation_id"]) == 0 and lookup[anim_id] == 0xFFFF:
+            lookup[anim_id] = int(s["physical_index"])
+
+    for s in source_sequences:
+        anim_id = int(s["animation_id"])
         if lookup[anim_id] == 0xFFFF:
-            lookup[anim_id] = physical_index
+            lookup[anim_id] = int(s["physical_index"])
+
     return struct.pack("<" + "H" * len(lookup), *lookup)
 
 
@@ -88,7 +106,7 @@ def compare_sequence_semantics(source: bytes, target: bytes) -> List[str]:
     for i, (a, b) in enumerate(zip(src, dst)):
         timeline += 3333
         expected_start = timeline
-        expected_end = expected_start + a["length"]
+        expected_end = expected_start + int(a["length"])
         timeline = expected_end
 
         if a["animation_id"] != b["animation_id"]:
@@ -112,13 +130,17 @@ def repair_v256_animation_metadata(
     source_v264: Path,
     input_v256: Path,
     output_v256: Path,
-    animation_data_dbc: Path,
+    animation_data_dbc: Path | None = None,
     fix_quat_minus_one: bool = True,
 ) -> dict:
-    """Repair metadata without inventing Sequence.Index.
+    """Repair older project v256 animation metadata using the original v264.
 
-    Original v264 source is mandatory because an older lossy v256 may already
-    have destroyed Index/alias information.
+    The original source is mandatory: once an older target has zeroed/rewritten
+    Sequence.Index there is no safe way to reconstruct alias semantics from the
+    damaged target alone.
+
+    `animation_data_dbc` is accepted for compatibility but Golden V4 playable
+    generation no longer derives its graph from build12340 DBC field 5.
     """
     src = source_v264.read_bytes()
     dst = bytearray(input_v256.read_bytes())
@@ -128,7 +150,7 @@ def repair_v256_animation_metadata(
         raise ValueError("source/target sequence count differs")
 
     timeline = 0
-    anim_count, anim_off = struct.unpack_from("<II", dst, 28)
+    _, anim_off = struct.unpack_from("<II", dst, 28)
     for i, s in enumerate(source_sequences):
         o = anim_off + i * 68
         timeline += 3333
@@ -139,7 +161,6 @@ def repair_v256_animation_metadata(
             "<HHII", dst, o,
             int(s["animation_id"]), int(s["sub_animation_id"]), start, end
         )
-        # moveSpeed..Index is semantically preserved byte-for-byte with +4 shift.
         dst[o + 12:o + 68] = s["raw_tail_from_move_speed"]
 
     lookup = build_animation_lookup(source_sequences)
@@ -147,9 +168,7 @@ def repair_v256_animation_metadata(
     dst.extend(lookup)
     struct.pack_into("<II", dst, 36, len(lookup) // 2, lookup_off)
 
-    playable = build_playable_bytes(
-        (s["animation_id"] for s in source_sequences), animation_data_dbc
-    )
+    playable = build_playable_bytes(s["animation_id"] for s in source_sequences)
     playable_off = len(dst)
     dst.extend(playable)
     struct.pack_into("<II", dst, 44, 226, playable_off)
@@ -163,12 +182,13 @@ def repair_v256_animation_metadata(
             bo = bone_off + bi * 108
             if bo + 108 > len(dst):
                 raise ValueError(f"bone {bi} out of range")
-            typ, seq, rn, ro, tn, to, kn, ko = struct.unpack_from(
+            # Classic rotation AnimationBlock at bone +40.
+            _, _, _, _, _, _, key_count, key_off = struct.unpack_from(
                 "<hhIIIIII", dst, bo + 40
             )
-            if kn and ko + kn * 16 <= len(dst):
-                for k in range(kn):
-                    q = ko + k * 16
+            if key_count and key_off + key_count * 16 <= len(dst):
+                for k in range(key_count):
+                    q = key_off + k * 16
                     for c in range(4):
                         p = q + c * 4
                         if dst[p:p + 4] == bad:
