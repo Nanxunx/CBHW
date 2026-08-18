@@ -24,7 +24,11 @@ struct AdtWriterInput
     std::vector<std::string> textures;
     std::vector<M2PlacementInput> m2Placements;
     std::vector<WmoPlacementInput> wmoPlacements;
-    std::array<AdtCellInput, 256> cells;
+
+    // Preserve the fixed 256-cell contract without embedding every large cell
+    // directly in the parent object. This keeps Windows converter call frames
+    // small while retaining cells[index], range-for and size() behavior.
+    std::vector<AdtCellInput> cells = std::vector<AdtCellInput>(256);
 
     // Optional complete raw MFBO chunk (OBFM + size + payload).
     std::vector<std::uint8_t> mfbo;
