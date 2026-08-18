@@ -49,7 +49,7 @@ float ReadF32(const std::vector<std::uint8_t>& bytes, std::size_t offset, const 
     const std::uint32_t bits = ReadU32(bytes, offset, what);
     float value = 0.0f;
     static_assert(sizeof(bits) == sizeof(value));
-    std::memcpy(&value, &bits, sizeof(value));
+    std::memcpy(&value, &bits, sizeof(bits));
     if (!std::isfinite(value))
         throw std::runtime_error(std::string(what) + " is non-finite");
     return value;
@@ -114,6 +114,41 @@ std::vector<std::uint8_t> CopySubchunk(const std::vector<std::uint8_t>& bytes,
         throw std::runtime_error(std::string(what) + " extends outside owning MCNK");
     return std::vector<std::uint8_t>(bytes.begin() + static_cast<std::ptrdiff_t>(chunk.offset),
                                      bytes.begin() + static_cast<std::ptrdiff_t>(chunk.offset + chunk.totalSize));
+}
+
+std::vector<std::uint8_t> CopySizedSubchunk(const std::vector<std::uint8_t>& bytes,
+                                            const ChunkView& mcnk,
+                                            std::uint32_t relativeOffset,
+                                            std::uint32_t owningSize,
+                                            const char rawId[4],
+                                            const char* what)
+{
+    if (relativeOffset == 0)
+    {
+        if (owningSize != 0)
+            throw std::runtime_error(std::string(what) + " has a size but no MCNK offset");
+        return {};
+    }
+    if (owningSize < 8u)
+        throw std::runtime_error(std::string(what) + " MCNK size is smaller than an 8-byte chunk header");
+
+    const std::size_t absolute = mcnk.offset + static_cast<std::size_t>(relativeOffset);
+    if (absolute < mcnk.payloadOffset + 128u || absolute >= mcnk.offset + mcnk.totalSize)
+        throw std::runtime_error(std::string(what) + " offset is outside MCNK payload data");
+    RequireRange(absolute, owningSize, bytes.size(), what);
+    if (absolute + static_cast<std::size_t>(owningSize) > mcnk.offset + mcnk.totalSize)
+        throw std::runtime_error(std::string(what) + " MCNK-declared size extends outside owning MCNK");
+    RequireId(bytes, absolute, rawId, what);
+
+    // Legacy MCLQ is special: Blizzard/Noggit files may store zero in the
+    // QLCM chunk's own size field while MCNK.sizeMCLQ carries the real block
+    // length (8 + 804*N). If the inner size is nonzero, require consistency.
+    const std::uint32_t innerPayload = ReadU32(bytes, absolute + 4u, what);
+    if (innerPayload != 0 && static_cast<std::size_t>(innerPayload) + 8u != owningSize)
+        throw std::runtime_error(std::string(what) + " inner size disagrees with MCNK-declared size");
+
+    return std::vector<std::uint8_t>(bytes.begin() + static_cast<std::ptrdiff_t>(absolute),
+                                     bytes.begin() + static_cast<std::ptrdiff_t>(absolute + owningSize));
 }
 
 std::size_t ResolveMhdr(const std::vector<std::uint8_t>& bytes,
@@ -372,6 +407,7 @@ WotlkAdtDocument ParseWotlkAdt(const std::vector<std::uint8_t>& bytes)
         const std::uint32_t offsMCSH = ReadU32(bytes, mcnkOffset + 52u, "MCNK offsMCSH");
         const std::uint32_t offsMCSE = ReadU32(bytes, mcnkOffset + 96u, "MCNK offsMCSE");
         const std::uint32_t offsMCLQ = ReadU32(bytes, mcnkOffset + 104u, "MCNK offsMCLQ");
+        const std::uint32_t sizeMCLQ = ReadU32(bytes, mcnkOffset + 108u, "MCNK sizeMCLQ");
         const std::uint32_t offsMCCV = ReadU32(bytes, mcnkOffset + 124u, "MCNK offsMCCV");
 
         cell.mcvt = CopySubchunk(bytes, mcnk, offsMCVT, "TVCM", "MCVT");
@@ -380,7 +416,7 @@ WotlkAdtDocument ParseWotlkAdt(const std::vector<std::uint8_t>& bytes)
         cell.mcal = CopySubchunk(bytes, mcnk, offsMCAL, "LACM", "MCAL");
         cell.mcsh = CopySubchunk(bytes, mcnk, offsMCSH, "HSCM", "MCSH");
         cell.mcse = CopySubchunk(bytes, mcnk, offsMCSE, "ESCM", "MCSE");
-        cell.mclq = CopySubchunk(bytes, mcnk, offsMCLQ, "QLCM", "MCLQ");
+        cell.mclq = CopySizedSubchunk(bytes, mcnk, offsMCLQ, sizeMCLQ, "QLCM", "MCLQ");
         cell.mccv = CopySubchunk(bytes, mcnk, offsMCCV, "VCCM", "MCCV");
 
         const std::size_t totalRefs = static_cast<std::size_t>(cell.header.nDoodadRefs) +
