@@ -1,9 +1,11 @@
 #include "turtle335/m2/RibbonWriter.h"
 #include "turtle335/m2/LegacyTrack.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
@@ -12,27 +14,60 @@ namespace {
 constexpr std::size_t kSourceStride = 176u;
 constexpr std::size_t kTargetStride = 220u;
 
-std::uint32_t ReadU32(const std::vector<std::uint8_t>& d, std::size_t o)
+std::uint16_t ReadU16(const std::vector<std::uint8_t>& d, const std::size_t o)
+{
+    if (o > d.size() || 2u > d.size() - o) throw std::runtime_error("Ribbon u16 OOB");
+    return static_cast<std::uint16_t>(d[o]) |
+           static_cast<std::uint16_t>(static_cast<std::uint16_t>(d[o + 1]) << 8u);
+}
+
+std::uint32_t ReadU32(const std::vector<std::uint8_t>& d, const std::size_t o)
 {
     if (o > d.size() || 4u > d.size() - o) throw std::runtime_error("Ribbon u32 OOB");
-    return static_cast<std::uint32_t>(d[o]) | (static_cast<std::uint32_t>(d[o+1])<<8) |
-           (static_cast<std::uint32_t>(d[o+2])<<16) | (static_cast<std::uint32_t>(d[o+3])<<24);
+    return static_cast<std::uint32_t>(d[o]) | (static_cast<std::uint32_t>(d[o+1])<<8u) |
+           (static_cast<std::uint32_t>(d[o+2])<<16u) | (static_cast<std::uint32_t>(d[o+3])<<24u);
 }
-void PutU32(std::uint8_t* d, std::size_t o, std::uint32_t v)
+
+void PutU32(std::uint8_t* d, const std::size_t o, const std::uint32_t v)
 {
-    d[o]=static_cast<std::uint8_t>(v&0xffu); d[o+1]=static_cast<std::uint8_t>((v>>8)&0xffu);
-    d[o+2]=static_cast<std::uint8_t>((v>>16)&0xffu); d[o+3]=static_cast<std::uint8_t>((v>>24)&0xffu);
+    d[o]=static_cast<std::uint8_t>(v&0xffu); d[o+1]=static_cast<std::uint8_t>((v>>8u)&0xffu);
+    d[o+2]=static_cast<std::uint8_t>((v>>16u)&0xffu); d[o+3]=static_cast<std::uint8_t>((v>>24u)&0xffu);
 }
-std::pair<std::uint32_t,std::uint32_t> ReadPair(const std::vector<std::uint8_t>& d, std::size_t o)
+
+std::pair<std::uint32_t,std::uint32_t> ReadPair(const std::vector<std::uint8_t>& d, const std::size_t o)
 {
     return {ReadU32(d,o),ReadU32(d,o+4u)};
 }
-std::uint32_t CopyU16Array(BinaryBuilder& b,const std::vector<std::uint8_t>& src,std::uint32_t n,std::uint32_t o)
+
+std::uint32_t CopyU16Array(BinaryBuilder& b,const std::vector<std::uint8_t>& src,const std::uint32_t n,const std::uint32_t o)
 {
     if (!n) return 0u;
     const std::size_t bytes=static_cast<std::size_t>(n)*2u;
     if (!o || static_cast<std::size_t>(o)>src.size() || bytes>src.size()-o) throw std::runtime_error("Ribbon array OOB");
     return b.Append(src.data()+o,bytes);
+}
+
+std::vector<std::uint8_t> BaseDefault(const std::size_t baseSize, const bool colorOnes)
+{
+    std::vector<std::uint8_t> out(baseSize,0u);
+    if (colorOnes)
+    {
+        if (baseSize != 12u) throw std::runtime_error("Ribbon color base key size must be 12");
+        const std::array<float,3> ones{{1.0f,1.0f,1.0f}};
+        std::memcpy(out.data(),ones.data(),out.size());
+    }
+    return out;
+}
+
+std::vector<std::uint8_t> ExpandDefaultForInterpolation(
+    const std::vector<std::uint8_t>& base,
+    const std::uint16_t interpolation)
+{
+    const std::size_t multiplier=(interpolation==2u || interpolation==3u) ? 3u : 1u;
+    std::vector<std::uint8_t> out;
+    out.reserve(base.size()*multiplier);
+    for (std::size_t i=0;i<multiplier;++i) out.insert(out.end(),base.begin(),base.end());
+    return out;
 }
 }
 
@@ -50,10 +85,10 @@ RibbonConversionResult ConvertWotlkRibbons(
         throw std::runtime_error("Ribbon source records OOB");
     result.target.offset=output.Reserve(static_cast<std::size_t>(sourceRibbons.count)*kTargetStride);
 
-    struct Spec { std::size_t src; std::size_t dst; std::size_t keySize; std::size_t defaultSize; };
+    struct Spec { std::size_t src; std::size_t dst; std::size_t baseKeySize; bool colorOnes; };
     const std::array<Spec,6> specs{{
-        {36u,36u,12u,12u},{56u,64u,2u,2u},{76u,92u,4u,4u},
-        {96u,120u,4u,4u},{132u,164u,2u,2u},{152u,192u,1u,1u}
+        {36u,36u,12u,true},{56u,64u,2u,false},{76u,92u,4u,false},
+        {96u,120u,4u,false},{132u,164u,2u,false},{152u,192u,1u,false}
     }};
 
     for (std::uint32_t i=0;i<sourceRibbons.count;++i)
@@ -69,8 +104,12 @@ RibbonConversionResult ConvertWotlkRibbons(
 
         for (const auto& s: specs)
         {
-            const auto wt=ParseWotlkTrack(source,so+s.src,s.keySize);
-            const auto flat=FlattenLegacyValueTrack(wt,windows,std::vector<std::uint8_t>(s.defaultSize,0u));
+            const std::uint16_t interpolation=ReadU16(source,so+s.src);
+            const std::size_t multiplier=(interpolation==2u || interpolation==3u) ? 3u : 1u;
+            const std::size_t keySize=s.baseKeySize*multiplier;
+            const auto wt=ParseWotlkTrack(source,so+s.src,keySize);
+            const auto defaultKey=ExpandDefaultForInterpolation(BaseDefault(s.baseKeySize,s.colorOnes),interpolation);
+            const auto flat=FlattenLegacyValueTrack(wt,windows,defaultKey);
             const auto ct=SerializeClassicTrack(output,wt,flat);
             std::copy(ct.begin(),ct.end(),rec.begin()+static_cast<std::ptrdiff_t>(s.dst));
         }
