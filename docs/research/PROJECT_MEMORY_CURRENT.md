@@ -1,48 +1,62 @@
 # 模型移植项目 — 当前权威记忆
 
-更新时间：2026-08-19 15:05 +08:00
+更新时间：2026-08-19 15:12 +08:00
 
 本文件是 `NansenCore/Turtle335Converter` 的当前记忆入口。
 
-## 当前扫描策略：V4.3 Targeted
+## 当前扫描策略：V4.4 Focused Targeted
 
 用户指出 V4.2 对约11597 pair 全量深扫描存在明显冗余。该判断成立。
 
-V4.2 保留为“全库 production gate”工具，但当前日常研究入口切换为 V4.3 两阶段定向扫描：
+V4.2 保留为“最终全库 production gate”工具，但当前日常研究入口切换为 V4.4 三阶段定向扫描：
 
 ```text
-tools/modelport/modelport_targeted_scan_v43.py
-tools/modelport/Run_ModelPort_TargetedScan_V43.ps1
+tools/modelport/modelport_targeted_scan_v44.py
+tools/modelport/Run_ModelPort_TargetedScan_V44.ps1
 ```
 
-V4.3：
+V4.4：
 
 ```text
-Phase 1：全库只读取约324B M2 Header
- -> 识别 Animation / Ribbon / Particle / TexAnim / Event / ExternalAnim
- -> 检查 335 v264 / target v256 与基本 count 异常
+Phase 1：全库只读约324B M2 Header
+ -> Animation / Ribbon / Particle / TexAnim / Event / version/count 分类
 
-Phase 2：只对当前真正相关的模型做深度二进制比较
- -> animations > 0
- -> ribbons > 0
- -> particles > 0
- -> texanims > 0
- -> events > 0
+Phase 2：只对有 Animation 的 335 source 读取 64B Sequence records
+ -> Alias(flags&0x40)
+ -> SubAnimationID
+ -> duplicate AnimationID
+ -> MaxAnimationID
+
+Phase 3：只对当前真正相关的高风险 Feature 做 335↔成功112 深度比较
+ -> RibbonEmitter > 0
+ -> Particle > 0
+ -> TexAnim > 0
  -> external .anim
- -> version/count anomaly
+ -> Alias
+ -> SubAnimation
+ -> duplicate AnimationID
+ -> source/target version/count anomaly
 ```
 
-普通静态模型不再运行 Sequence / AnimationLookup / 226 Playable 深度比较。
+普通动画模型额外只抽样24个高风险候选回归；普通静态模型不做 Sequence / AnimationLookup / 226 Playable 深度比较。
 
-自动优先打包：
+## V4.4 转换队列
+
+自动生成 `STAGING/00_Metadata/ConversionQueues/`：
 
 ```text
-1. Rule mismatch
-2. true RibbonEmitter > 0
-3. Particle + one animation
-4. complex Particle
-5. Alias / SubAnimation
+STATIC_GEOMETRY_SAFE
+ANIMATION_BASELINE
+ANIMATION_HIGH_RISK_GOLDEN
+EXTERNAL_ANIM_COPY
+TEXANIM_GOLDEN_VALIDATED
+NEEDS_PARTICLE_FULL_WRITER
+NEEDS_RIBBON_FULL_WRITER
+NO_GOLDEN_PAIR
+BLOCK_HEADER_ERROR
 ```
+
+这些队列直接作为后续 batch converter 的 feature gate 输入。
 
 ## V4.2 状态
 
@@ -53,7 +67,7 @@ tools/modelport/modelport_fullscan_v42_resume.py
 tools/modelport/Run_ModelPort_FullScan_V42_RESUME.ps1
 ```
 
-但当前无需继续等待 V4.2 扫描完整11597对。
+当前无需继续等待 V4.2 扫描完整11597对。
 
 ## V4.1/V4 已确认基础
 
@@ -93,7 +107,7 @@ TextureAnimation: 10 records
 Particle: 50 emitters（部分规则已确认，FULL writer尚未BATCH_READY）
 ```
 
-Ribbon 仍缺真正 `nRibbonEmitters > 0` 的 Golden Sample，V4.3 必须按 Header 自动筛选，禁止按文件名猜。
+Ribbon 仍缺真正 `nRibbonEmitters > 0` 的 Golden Sample。V4.4 必须按 Header 自动筛选，禁止按文件名猜。
 
 ## Golden Source
 
@@ -102,6 +116,12 @@ Ribbon 仍缺真正 `nRibbonEmitters > 0` 的 Golden Sample，V4.3 必须按 Hea
 ```text
 E:\335_FinalExtract_V5
 E:\335to112_Converted_FinalExtract_V1
+```
+
+## 最新检查点
+
+```text
+docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_1512.md
 ```
 
 ## ADT
