@@ -13,7 +13,6 @@ $ErrorActionPreference = "Stop"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Repo = (Resolve-Path (Join-Path $Here "..\..")).Path
 $Converter = Join-Path $Repo "build-v46\Debug\turtle335_convert_m2.exe"
-$Probe = Join-Path $Repo "build-v46\Debug\turtle335_probe_m2.exe"
 $Scanner = Join-Path $Here "modelport_targeted_scan_v44.py"
 
 Write-Host "============================================================" -ForegroundColor Green
@@ -38,7 +37,6 @@ if (!(Test-Path -LiteralPath $Scanner -PathType Leaf)) {
     throw "找不到 V4.4 targeted selector：$Scanner"
 }
 
-# Find Python 3 only when V4.4 metadata must be regenerated.
 function Find-Python3 {
     foreach ($Candidate in @("py", "python", "python3")) {
         try {
@@ -105,8 +103,8 @@ Write-Host ""
 
 $HeaderRows = Import-Csv -LiteralPath $HeaderCsv
 $SelectedRows = Import-Csv -LiteralPath $SelectedCsv
-$Selection = @()
-$Seen = @{}
+$script:Selection = @()
+$script:Seen = @{}
 
 function Add-Sample {
     param(
@@ -116,9 +114,9 @@ function Add-Sample {
     $Rel = [string]$Row.RelativePath
     if ([string]::IsNullOrWhiteSpace($Rel)) { return }
     $Key = $Rel.ToLowerInvariant()
-    if ($Seen.ContainsKey($Key)) { return }
-    $Seen[$Key] = $true
-    $Selection += [pscustomobject]@{
+    if ($script:Seen.ContainsKey($Key)) { return }
+    $script:Seen[$Key] = $true
+    $script:Selection += [pscustomobject]@{
         Category = $Category
         RelativePath = $Rel
         Animations = [int]($Row.Animations -as [int])
@@ -128,13 +126,13 @@ function Add-Sample {
 }
 
 $StaticRows = $HeaderRows | Where-Object {
-    $_.Has112 -match '^(?i:true|1|yes)$' -and
+    $_.Has112 -match '(?i)^(true|1|yes)$' -and
     [string]::IsNullOrWhiteSpace($_.HeaderError) -and
     $_.ConversionPlan -eq "STATIC_GEOMETRY_SAFE"
 } | Sort-Object { [int]$_.Vertices } | Select-Object -First $StaticLimit
 
 $AnimatedRows = $HeaderRows | Where-Object {
-    $_.Has112 -match '^(?i:true|1|yes)$' -and
+    $_.Has112 -match '(?i)^(true|1|yes)$' -and
     [string]::IsNullOrWhiteSpace($_.HeaderError) -and
     $_.ConversionPlan -eq "ANIMATION_BASELINE"
 } | Sort-Object @{Expression={ [int]$_.Animations }; Descending=$true}, @{Expression={ [int]$_.Vertices }; Descending=$true} | Select-Object -First $AnimatedLimit
@@ -143,6 +141,7 @@ foreach ($Row in $StaticRows) { Add-Sample "00_StaticBaseline" $Row }
 foreach ($Row in $AnimatedRows) { Add-Sample "00_AnimationBaseline" $Row }
 foreach ($Row in $SelectedRows) { Add-Sample ([string]$Row.Category) $Row }
 
+$Selection = $script:Selection
 if ($Selection.Count -eq 0) { throw "没有找到可用于 V4.6 Golden regression 的 selected samples" }
 
 $Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
