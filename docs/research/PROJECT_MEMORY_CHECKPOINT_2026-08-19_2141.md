@@ -59,7 +59,7 @@ GitHub public status was operational during this pass. The strongest remaining h
 
 The previously identified texture-relocation compile blocker remains fixed by the pointer `PutU32(std::uint8_t*, ...)` overload in `ClassicM2Writer.cpp`.
 
-No new obvious C++17 signature mismatch was found in this static pass. This does **not** replace a real compile.
+No new obvious C++17 signature mismatch was found in this static pass.
 
 ### 3. Strict validator header offsets were cross-checked against the writer
 
@@ -94,18 +94,49 @@ The nested Texture filename `(count, offset)` validation is also aligned with th
 
 Result: no validator header-offset regression found in this pass.
 
-## File-library / Golden availability check
+## Real local build / CTest result — PASS
 
-No ready-to-consume V4.6 local Build/CTest log was found in the project file library.
+On 2026-08-20 03:31 +08 the user ran the hardened local evidence runner from the real Windows machine on branch `fix/v46-whole-m2-build` at commit `57649fe0eb5ed10edee39020140616489d9ecc4a`.
 
-No actual binary/output artifact was found for:
+Actual selected environment:
 
-- `ModelPort_GoldenReference_Targeted_V44_ALL.zip`
-- `V44_SelectedSamples.csv`
-- `V44_Summary.json`
-- Build 12340 `AnimationData.dbc`
+- Visual Studio 2022 Build Tools: `D:\BuildTools`
+- Windows SDK: `10.0.26100.0`
+- MSVC: `19.44.35228.0`
+- compiler: `D:/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe`
+- CMake: `3.29.9`
+- Debug / x64
 
-Only the scanners/packers and earlier metadata/reference documents are currently available there.
+Configure completed successfully. `turtle335_core`, `turtle335_probe_m2.exe`, `turtle335_convert_m2.exe`, and every registered test executable linked successfully.
+
+The compiler emitted existing `C4244` narrowing warnings in ADT/Particle code, but no build error.
+
+Complete CTest result:
+
+```text
+100% tests passed, 0 tests failed out of 30
+Total Test time (real) = 3.93 sec
+```
+
+The local runner reported:
+
+```text
+V4.6 validation status: PASS
+PASS: real VS2022 build + complete CTest finished. Next gate is selected Golden regression.
+```
+
+Evidence paths:
+
+```text
+D:\Turtle335Converter\validation-v46\V46_LocalValidation_20260820_033149\VALIDATION_SUMMARY.txt
+D:\Turtle335Converter\validation-v46\V46_LocalValidation_20260820_033149.zip
+D:\Turtle335Converter\build-v46\Debug\turtle335_convert_m2.exe
+D:\Turtle335Converter\build-v46\Debug\turtle335_probe_m2.exe
+```
+
+**The build/CTest hard gate is therefore CLOSED and PASS.**
+
+## Golden corpus convention
 
 The local Golden corpus convention remains:
 
@@ -122,29 +153,40 @@ V4.4 selected-family policy remains targeted rather than broad-scan:
 - `05_AliasSubAnimation` — up to 5
 - plus a capped ordinary-animation regression sample
 
-## Current hard gate
-
-We still do **not** have a real CMake/CTest PASS for the V4.6 whole writer.
-
-The next executable gate is the existing local runner:
+A new V4.6 collection runner now exists:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\modelport\Run_V46_LocalBuildCTest.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\tools\modelport\Run_V46_SelectedGolden.ps1
 ```
 
-That runner performs:
+It reuses the V4.4 targeted selector only when its metadata is missing, adds small static/ordinary-animation baselines, runs the actual `turtle335_convert_m2.exe`, and packages source M2 + skin/anim sidecars, generated canonical v256, historical successful 1.12 target, logs, hashes, and metadata for semantic comparison.
 
-1. Visual Studio 2022 x64 Configure
-2. Debug build
-3. complete CTest with output-on-failure
+## Current hard gate
 
-Only after a real PASS should the project proceed to selected whole-output Golden regression.
+The current hard gate is now **selected real-model whole-output Golden regression**, not compilation.
 
-## Next order after a real build/test result
+The next executable step is:
 
-1. Fix any real compile/CTest error if present.
-2. If PASS, run `turtle335_convert_m2` over selected static / animated / Ribbon / Particle Golden families.
-3. Compare generated canonical v256 output against the successful 1.12 corpus semantically; do not require historical one-key encodings to be byte-identical where both forms are known-valid.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\modelport\Run_V46_SelectedGolden.ps1
+```
+
+Expected families:
+
+1. static baseline
+2. ordinary animated baseline
+3. true Ribbon
+4. Particle one-animation
+5. Particle complex
+6. alias/subanimation/high-risk animation
+
+Light-bearing models remain intentionally reference-gated and should be reported/skipped rather than force-enabled.
+
+## Next order
+
+1. Run `Run_V46_SelectedGolden.ps1` and inspect/package the real generated outputs.
+2. Compare generated canonical v256 against the successful historical 1.12 corpus semantically; do not require historical one-key encodings to be byte-identical where both forms are known-valid.
+3. Treat historical V4 Playable bytes as informational only; V4.6 production uses Build12340 `AnimationData.dbc` fallback graph plus canonical overrides.
 4. Collect only a tiny targeted `Light > 0` paired Golden if available; no full-library Light scan.
 5. Perform minimal Turtle WoW 1.18.1 Ribbon + Particle/Creature in-game regression.
 6. Lock M2 production only after those gates pass.
@@ -154,6 +196,6 @@ Only after a real PASS should the project proceed to selected whole-output Golde
 
 - Do not restart ordinary Sword/Mace proof-of-concept testing.
 - Do not perform another broad M2 full-library deep scan.
-- Do not claim Actions Run #282 is a C++ or CTest failure.
+- Do not treat the current GitHub Actions zero-step failures as C++/CTest evidence.
 - Do not enable Light-bearing production output by default before paired Golden evidence.
-- Do not merge PR #7 into `main` until the real validation gates above pass.
+- Do not merge PR #7 into `main` until the Golden and in-game gates pass.
