@@ -82,11 +82,13 @@ const std::vector<std::uint8_t>& SelectTimeSource(
 {
     if (count == 0u || outerCount != sequences.size() || group >= sequences.size())
         return mainM2;
-    if (!SequenceUsesExternalAnimSidecar(sequences[group]))
+
+    const std::size_t payloadIndex = ResolveWotlkPayloadSequenceIndex(sequences, group);
+    if (!SequenceUsesExternalAnimSidecar(sequences[payloadIndex]))
         return mainM2;
-    if (group >= sidecars.size() || sidecars[group] == nullptr)
+    if (payloadIndex >= sidecars.size() || sidecars[payloadIndex] == nullptr)
         throw std::runtime_error("Event timer requires missing external .anim sidecar");
-    return *sidecars[group];
+    return *sidecars[payloadIndex];
 }
 
 std::uint32_t AppendRanges(
@@ -149,7 +151,9 @@ std::array<std::uint8_t, 20> ConvertEventTimer(
         if (ref.first != 0u)
         {
             const std::size_t bytes = static_cast<std::size_t>(ref.first) * 4u;
-            if (ref.second == 0u || static_cast<std::size_t>(ref.second) > payload.size() ||
+            const bool externalPayload = &payload != &source;
+            if ((!externalPayload && ref.second == 0u) ||
+                static_cast<std::size_t>(ref.second) > payload.size() ||
                 bytes > payload.size() - static_cast<std::size_t>(ref.second))
                 throw std::runtime_error("Event time payload OOB");
             groups[i].reserve(ref.first);
@@ -166,8 +170,7 @@ std::array<std::uint8_t, 20> ConvertEventTimer(
 
     if (groups.empty())
     {
-        // A truly empty Event timer stays empty; unlike value tracks there is
-        // no semantic value key to synthesize.
+        // Truly empty timers stay empty.
     }
     else if (globalSequence >= 0)
     {
@@ -175,29 +178,51 @@ std::array<std::uint8_t, 20> ConvertEventTimer(
             throw std::runtime_error("global Event timer must have one time group");
         times = groups.front();
     }
-    else if (groups.size() == 1u && groups[0].size() == 1u)
+    else if (groups.size() == 1u)
     {
-        // Historical constant/event shortcut used by working legacy targets.
-        times = groups[0];
+        // Paired successful 1.12 targets preserve a free-standing one-group
+        // timer's relative times and retain one explicit range. Do not shift
+        // it into a sequence window merely because the model has one sequence.
+        if (!groups[0].empty())
+        {
+            ranges.emplace_back(0u, static_cast<std::uint32_t>(groups[0].size()));
+            times = groups[0];
+        }
     }
     else if (groups.size() == windows.size())
     {
+        // V4.6 selected paired Golden rule, verified across every Event record
+        // in the selected corpus:
+        //   empty group  -> empty range
+        //   one time     -> duplicate at sequence start/end
+        //   multiple     -> shift all by sequence start
+        // then append the historical [0,0] sentinel range.
         std::uint32_t cursor = 0u;
         ranges.reserve(windows.size() + 1u);
         for (std::size_t i = 0u; i < windows.size(); ++i)
         {
-            const auto count = static_cast<std::uint32_t>(groups[i].size());
-            ranges.emplace_back(cursor, cursor + count);
-            for (const auto relative : groups[i])
-                times.push_back(windows[i].start + relative);
-            cursor += count;
+            const auto& group = groups[i];
+            if (group.empty())
+            {
+                ranges.emplace_back(cursor, cursor);
+            }
+            else if (group.size() == 1u)
+            {
+                ranges.emplace_back(cursor, cursor + 2u);
+                times.push_back(windows[i].start + group[0]);
+                times.push_back(windows[i].end + group[0]);
+                cursor += 2u;
+            }
+            else
+            {
+                const auto count = static_cast<std::uint32_t>(group.size());
+                ranges.emplace_back(cursor, cursor + count);
+                for (const auto relative : group)
+                    times.push_back(windows[i].start + relative);
+                cursor += count;
+            }
         }
         ranges.emplace_back(0u, 0u);
-    }
-    else if (groups.size() == 1u)
-    {
-        // Free-standing non-sequence timer.
-        times = groups[0];
     }
     else
     {
