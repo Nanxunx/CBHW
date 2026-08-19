@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace turtle335::m2 {
 namespace {
@@ -58,14 +59,16 @@ void ValidatePayload(
     const std::uint32_t count,
     const std::uint32_t offset,
     const std::size_t elementSize,
-    const char* what)
+    const char* what,
+    const bool allowZeroOffset)
 {
     if (count == 0u)
         return;
     if (elementSize == 0u)
         throw std::runtime_error(std::string(what) + " has zero element size");
     const std::size_t size = static_cast<std::size_t>(count) * elementSize;
-    if (offset == 0u || static_cast<std::size_t>(offset) > bytes.size() ||
+    if ((!allowZeroOffset && offset == 0u) ||
+        static_cast<std::size_t>(offset) > bytes.size() ||
         size > bytes.size() - static_cast<std::size_t>(offset))
         throw std::runtime_error(std::string(what) + " payload outside selected data source");
 }
@@ -83,13 +86,14 @@ const std::vector<std::uint8_t>& SelectPayloadSource(
     if (outerCount != sequences.size() || groupIndex >= sequences.size() || innerCount == 0u)
         return mainM2;
 
-    if (!SequenceUsesExternalAnimSidecar(sequences[groupIndex]))
+    const std::size_t payloadIndex = ResolveWotlkPayloadSequenceIndex(sequences, groupIndex);
+    if (!SequenceUsesExternalAnimSidecar(sequences[payloadIndex]))
         return mainM2;
 
-    if (groupIndex >= externalBySequence.size() || externalBySequence[groupIndex] == nullptr)
+    if (payloadIndex >= externalBySequence.size() || externalBySequence[payloadIndex] == nullptr)
         throw std::runtime_error(
             "WotLK track requires an external .anim sidecar that was not supplied");
-    return *externalBySequence[groupIndex];
+    return *externalBySequence[payloadIndex];
 }
 
 } // namespace
@@ -97,6 +101,29 @@ const std::vector<std::uint8_t>& SelectPayloadSource(
 bool SequenceUsesExternalAnimSidecar(const WotlkM2Sequence& sequence) noexcept
 {
     return (sequence.flags & 0x20u) == 0u;
+}
+
+std::size_t ResolveWotlkPayloadSequenceIndex(
+    const std::vector<WotlkM2Sequence>& sequences,
+    const std::size_t sequenceIndex)
+{
+    if (sequenceIndex >= sequences.size())
+        throw std::runtime_error("WotLK animation payload sequence index is out of range");
+
+    std::vector<bool> visited(sequences.size(), false);
+    std::size_t current = sequenceIndex;
+    while ((sequences[current].flags & 0x40u) != 0u)
+    {
+        if (visited[current])
+            throw std::runtime_error("WotLK animation alias sequence contains a cycle");
+        visited[current] = true;
+
+        const std::size_t next = static_cast<std::size_t>(sequences[current].index);
+        if (next >= sequences.size())
+            throw std::runtime_error("WotLK animation alias target is out of range");
+        current = next;
+    }
+    return current;
 }
 
 std::string BuildWotlkAnimSidecarFilename(
@@ -166,8 +193,20 @@ WotlkTrackData ParseWotlkTrackWithExternal(
         const auto& keySource = SelectPayloadSource(
             mainM2, sequences, externalBySequence, outerCount, i, keys.first);
 
-        ValidatePayload(timeSource, times.first, times.second, 4u, "WotLK timestamps");
-        ValidatePayload(keySource, keys.first, keys.second, keySize, "WotLK keys");
+        ValidatePayload(
+            timeSource,
+            times.first,
+            times.second,
+            4u,
+            "WotLK timestamps",
+            &timeSource != &mainM2);
+        ValidatePayload(
+            keySource,
+            keys.first,
+            keys.second,
+            keySize,
+            "WotLK keys",
+            &keySource != &mainM2);
 
         result.timestamps[i].reserve(times.first);
         for (std::uint32_t j = 0u; j < times.first; ++j)
