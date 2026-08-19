@@ -90,6 +90,9 @@ int main()
     assert(lookup[160] == 2);
 
     const auto graph = ParseBuild12340AnimationFallbackGraph(MakeAnimationDataDbc());
+    assert(graph[28] == 27u);
+    assert(graph[108] == 111u);
+    assert(graph[112] == 111u);
     assert(graph[146] == 0u && graph[172] == 16u && graph[181] == 19u);
 
     WotlkM2Sequence stand{}; stand.animationId = 0u;
@@ -102,6 +105,15 @@ int main()
     WotlkM2Sequence anim19{}; anim19.animationId = 19u;
     playable = BuildClassicPlayableAnimationLookup({stand, anim19}, graph);
     assert(playable[170].fallbackAnimationId == 19);
+
+    WotlkM2Sequence anim27{}; anim27.animationId = 27u;
+    playable = BuildClassicPlayableAnimationLookup({stand, anim27}, graph);
+    assert(playable[28].fallbackAnimationId == 27);
+
+    WotlkM2Sequence anim111{}; anim111.animationId = 111u;
+    playable = BuildClassicPlayableAnimationLookup({stand, anim111}, graph);
+    assert(playable[108].fallbackAnimationId == 111);
+    assert(playable[112].fallbackAnimationId == 111);
 
     std::cout << "PASS m2 core\n";
     return 0;
