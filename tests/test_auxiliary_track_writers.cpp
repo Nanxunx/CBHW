@@ -57,9 +57,10 @@ int main()
     constexpr std::uint32_t attachOff = 152u;
     std::vector<std::uint8_t> source(320u, 0u);
 
-    // Color RGB: one outer group / one key. Generic legacy policy keeps this
-    // as a constant no-range track rather than applying Ribbon/Particle's
-    // one-sequence start/end expansion.
+    // Color RGB: one outer group / one key. This test exercises the selected
+    // canonical ConstantNoRanges representation. Historical successful target
+    // corpora contain both this and per-sequence expanded legal forms, so the
+    // core policy remains explicit rather than implicit.
     PutU16(source, colorOff + 0u, 0u);
     PutU16(source, colorOff + 2u, 0xffffu);
     PutU32(source, colorOff + 4u, 1u); PutU32(source, colorOff + 8u, 250u);
@@ -70,16 +71,15 @@ int main()
     PutF32(source, 286u, 0.25f);
     PutF32(source, 290u, 0.5f);
     PutF32(source, 294u, 1.0f);
-    // Color alpha is empty.
     PutU16(source, colorOff + 20u + 2u, 0xffffu);
 
-    // Empty Transparency and TextureAnimation tracks.
     PutU16(source, transOff + 2u, 0xffffu);
     PutU16(source, texAnimOff + 2u, 0xffffu);
     PutU16(source, texAnimOff + 20u + 2u, 0xffffu);
     PutU16(source, texAnimOff + 40u + 2u, 0xffffu);
 
-    // Attachment fixed prefix plus empty enabled track.
+    // Attachment fixed prefix plus an empty WotLK enabled track. Real V4.4
+    // paired Golden targets serialize this as Times=[0], Keys=[1], no ranges.
     for (std::size_t i = 0u; i < 20u; ++i)
         source[attachOff + i] = static_cast<std::uint8_t>(0x40u + i);
     PutU16(source, attachOff + 20u + 2u, 0xffffu);
@@ -101,7 +101,6 @@ int main()
     assert(colors.count == 1u && colors.offset == 324u);
     const auto& d = output.Bytes();
 
-    // RGB Classic block at +0: Ranges pair count 0, Times count 1, Keys count 1.
     assert(GetU32(d, colors.offset + 4u) == 0u);
     assert(GetU32(d, colors.offset + 12u) == 1u);
     assert(GetU32(d, colors.offset + 20u) == 1u);
@@ -117,6 +116,15 @@ int main()
     assert(attachments.count == 1u);
     for (std::size_t i = 0u; i < 20u; ++i)
         assert(d[attachments.offset + i] == static_cast<std::uint8_t>(0x40u + i));
+
+    const std::size_t enabled = static_cast<std::size_t>(attachments.offset) + 20u;
+    assert(GetU32(d, enabled + 4u) == 0u);   // no ranges
+    assert(GetU32(d, enabled + 12u) == 1u); // one time
+    assert(GetU32(d, enabled + 20u) == 1u); // one key
+    const auto enabledTime = GetU32(d, enabled + 16u);
+    const auto enabledKey = GetU32(d, enabled + 24u);
+    assert(GetU32(d, enabledTime) == 0u);
+    assert(d[enabledKey] == 1u);
 
     std::cout << "PASS auxiliary track writers\n";
     return 0;
