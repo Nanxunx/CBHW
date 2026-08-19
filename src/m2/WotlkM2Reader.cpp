@@ -80,6 +80,19 @@ WotlkM2Document ParseWotlkM2(const std::vector<std::uint8_t>& bytes)
     model.textures = ReadPair(bytes, 0x50u, "textures");
     model.transparency = ReadPair(bytes, 0x58u, "transparency");
     model.textureAnimations = ReadPair(bytes, 0x60u, "texture animations");
+    model.textureReplace = ReadPair(bytes, 0x68u, "texture replace");
+    model.renderFlags = ReadPair(bytes, 0x70u, "render flags");
+    model.boneLookup = ReadPair(bytes, 0x78u, "bone lookup");
+    model.textureLookup = ReadPair(bytes, 0x80u, "texture lookup");
+    model.textureUnitLookup = ReadPair(bytes, 0x88u, "texture unit lookup");
+    model.transparencyLookup = ReadPair(bytes, 0x90u, "transparency lookup");
+    model.textureAnimationLookup = ReadPair(bytes, 0x98u, "texture animation lookup");
+    std::copy_n(bytes.begin() + static_cast<std::ptrdiff_t>(0xa0u),
+                model.boundsAndCollisionFloats.size(),
+                model.boundsAndCollisionFloats.begin());
+    model.boundingTriangles = ReadPair(bytes, 0xd8u, "bounding triangles");
+    model.boundingVertices = ReadPair(bytes, 0xe0u, "bounding vertices");
+    model.boundingNormals = ReadPair(bytes, 0xe8u, "bounding normals");
     model.attachments = ReadPair(bytes, 0xf0u, "attachments");
     model.attachmentLookup = ReadPair(bytes, 0xf8u, "attachment lookup");
     model.events = ReadPair(bytes, 0x100u, "events");
