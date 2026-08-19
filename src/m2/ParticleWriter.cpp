@@ -166,7 +166,8 @@ std::uint8_t ColorByte(const float v)
 std::vector<std::uint8_t> ZeroKeyForInterpolation(const std::uint16_t interpolation,const std::size_t baseSize)
 {
     const std::size_t multiplier=(interpolation==2u || interpolation==3u)?3u:1u;
-    return std::vector<std::uint8_t>(baseSize*multiplier,0u);
+    const std::uint8_t fill=baseSize==1u ? 1u : 0u;
+    return std::vector<std::uint8_t>(baseSize*multiplier,fill);
 }
 
 WotlkTrackData ParseParticleTrack(
