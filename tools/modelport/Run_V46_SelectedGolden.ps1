@@ -9,7 +9,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Repo = (Resolve-Path (Join-Path $Here "..\..")).Path
 $Converter = Join-Path $Repo "build-v46\Debug\turtle335_convert_m2.exe"
@@ -48,7 +47,6 @@ function Find-Python3 {
 $Meta = Join-Path $V44Out "STAGING\00_Metadata"
 $HeaderCsv = Join-Path $Meta "V44_HeaderAndRiskIndex.csv"
 $SelectedCsv = Join-Path $Meta "V44_SelectedSamples.csv"
-
 if (!(Test-Path -LiteralPath $HeaderCsv -PathType Leaf) -or !(Test-Path -LiteralPath $SelectedCsv -PathType Leaf)) {
     Write-Host "V4.4 selected metadata 不存在，先运行 targeted selector（不是全库深扫）..." -ForegroundColor Yellow
     $Python = Find-Python3
@@ -63,13 +61,12 @@ if (!(Test-Path -LiteralPath $HeaderCsv -PathType Leaf) -or !(Test-Path -Literal
 if (!(Test-Path -LiteralPath $HeaderCsv -PathType Leaf) -or !(Test-Path -LiteralPath $SelectedCsv -PathType Leaf)) { throw "V4.4 targeted selector 未生成预期 metadata CSV" }
 
 if ([string]::IsNullOrWhiteSpace($AnimationData)) {
-    $Candidates = @(
+    foreach ($Candidate in @(
         (Join-Path $SourceRoot "DBFilesClient\AnimationData.dbc"),
         (Join-Path $SourceRoot "dbc\AnimationData.dbc"),
         (Join-Path $SourceRoot "DBC\AnimationData.dbc"),
         (Join-Path $SourceRoot "AnimationData.dbc")
-    )
-    foreach ($Candidate in $Candidates) {
+    )) {
         if (Test-Path -LiteralPath $Candidate -PathType Leaf) { $AnimationData = $Candidate; break }
     }
     if ([string]::IsNullOrWhiteSpace($AnimationData)) {
@@ -126,8 +123,7 @@ New-Item -ItemType Directory -Force -Path $GeneratedRoot, $GoldenRoot, $SourceEv
 Copy-Item -LiteralPath $HeaderCsv -Destination (Join-Path $MetadataRoot "V44_HeaderAndRiskIndex.csv")
 Copy-Item -LiteralPath $SelectedCsv -Destination (Join-Path $MetadataRoot "V44_SelectedSamples.csv")
 
-$Results = @()
-$Index = 0
+$Results = @(); $Index = 0
 foreach ($Sample in $Selection) {
     $Index++
     $Rel = [string]$Sample.RelativePath
@@ -141,8 +137,7 @@ foreach ($Sample in $Selection) {
     try {
         if (!(Test-Path -LiteralPath $Src -PathType Leaf)) { throw "source M2 missing" }
         if (!(Test-Path -LiteralPath $Dst -PathType Leaf)) { throw "historical target M2 missing" }
-        $OutDir = Split-Path -Parent $OutM2
-        New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutM2) | Out-Null
 
         $SourceCopy = Join-Path $SourceEvidenceRoot $Rel
         $SourceCopyDir = Split-Path -Parent $SourceCopy
@@ -155,18 +150,14 @@ foreach ($Sample in $Selection) {
         } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $SourceCopyDir $_.Name) }
 
         $GoldenCopy = Join-Path $GoldenRoot $Rel
-        $GoldenCopyDir = Split-Path -Parent $GoldenCopy
-        New-Item -ItemType Directory -Force -Path $GoldenCopyDir | Out-Null
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $GoldenCopy) | Out-Null
         Copy-Item -LiteralPath $Dst -Destination $GoldenCopy
 
         $PreviousEap = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        try {
-            & $Converter $Src $AnimationData $OutM2 *> $Log
-            $ExitCode = $LASTEXITCODE
-        } finally { $ErrorActionPreference = $PreviousEap }
+        try { & $Converter $Src $AnimationData $OutM2 *> $Log; $ExitCode = $LASTEXITCODE }
+        finally { $ErrorActionPreference = $PreviousEap }
         $LogText = if (Test-Path -LiteralPath $Log) { Get-Content -LiteralPath $Log -Raw } else { "" }
-
         if ($ExitCode -eq 0 -and (Test-Path -LiteralPath $OutM2 -PathType Leaf)) {
             $Status = "GENERATED"; Write-Host "  GENERATED" -ForegroundColor Green
         } elseif ($LogText -match "model contains Light records") {
@@ -182,7 +173,6 @@ foreach ($Sample in $Selection) {
         Set-Content -LiteralPath $Log -Value $Message -Encoding UTF8
         Write-Host ("  ERROR: " + $Message) -ForegroundColor Red
     }
-
     $GeneratedBytes = if (Test-Path -LiteralPath $OutM2 -PathType Leaf) { (Get-Item -LiteralPath $OutM2).Length } else { 0 }
     $GoldenBytes = if (Test-Path -LiteralPath $Dst -PathType Leaf) { (Get-Item -LiteralPath $Dst).Length } else { 0 }
     $Results += [pscustomobject]@{
@@ -191,8 +181,7 @@ foreach ($Sample in $Selection) {
     }
 }
 
-$Manifest = Join-Path $Evidence "V46_SelectedGolden_Manifest.csv"
-$Results | Export-Csv -LiteralPath $Manifest -NoTypeInformation -Encoding UTF8
+$Results | Export-Csv -LiteralPath (Join-Path $Evidence "V46_SelectedGolden_Manifest.csv") -NoTypeInformation -Encoding UTF8
 $Summary = [ordered]@{
     timestamp=$Stamp; repository=$Repo; branch=(git -C $Repo branch --show-current 2>$null); commit=(git -C $Repo rev-parse HEAD 2>$null)
     source_root=$SourceRoot; target_root=$TargetRoot; animation_data=$AnimationData
@@ -209,10 +198,8 @@ $Summary = [ordered]@{
     particle_selected=@($Results | Where-Object { [int]$_.Particles -gt 0 }).Count
     note="This package is collection evidence. Semantic generated-vs-historical comparison is the next analysis step; historical Playable V4 bytes are not the V4.6 production oracle."
 }
-$SummaryJson = Join-Path $Evidence "V46_SelectedGolden_Summary.json"
-$SummaryTxt = Join-Path $Evidence "V46_SelectedGolden_Summary.txt"
-$Summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $SummaryJson -Encoding UTF8
-$Summary.GetEnumerator() | ForEach-Object { "{0}: {1}" -f $_.Key, $_.Value } | Set-Content -LiteralPath $SummaryTxt -Encoding UTF8
+$Summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Evidence "V46_SelectedGolden_Summary.json") -Encoding UTF8
+$Summary.GetEnumerator() | ForEach-Object { "{0}: {1}" -f $_.Key, $_.Value } | Set-Content -LiteralPath (Join-Path $Evidence "V46_SelectedGolden_Summary.txt") -Encoding UTF8
 $Zip = $Evidence + ".zip"
 if (Test-Path -LiteralPath $Zip) { Remove-Item -LiteralPath $Zip -Force }
 Compress-Archive -Path (Join-Path $Evidence "*") -DestinationPath $Zip -CompressionLevel Optimal
@@ -221,8 +208,6 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host "V4.6 selected whole-M2 evidence collection finished" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host "Evidence directory:" -ForegroundColor Cyan
-Write-Host "  $Evidence" -ForegroundColor White
 Write-Host "Evidence ZIP:" -ForegroundColor Cyan
 Write-Host "  $Zip" -ForegroundColor White
 Write-Host "Generated: $($Summary.generated) / $($Summary.selected_total)" -ForegroundColor Cyan
