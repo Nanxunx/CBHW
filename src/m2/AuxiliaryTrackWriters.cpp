@@ -171,7 +171,7 @@ M2ArrayRef ConvertWotlkColors(
     ValidateRecords(source, sourceColors, sourceStride, "Color");
     const auto target = ReserveTarget(output, sourceColors.count, targetStride);
     const std::vector<std::uint8_t> zeroVec3(12u, 0u);
-    const std::vector<std::uint8_t> zeroShort(2u, 0u);
+    const std::vector<std::uint8_t> opaqueShort{0xffu, 0x7fu};
 
     for (std::uint32_t i = 0u; i < sourceColors.count; ++i)
     {
@@ -179,7 +179,7 @@ M2ArrayRef ConvertWotlkColors(
         const std::uint32_t to = target.offset + i * static_cast<std::uint32_t>(targetStride);
         std::array<std::uint8_t, targetStride> rec{};
         const auto rgb = ConvertRawValueTrack(output, source, so + 0u, 12u, zeroVec3, windows, sequences, externalBySequence);
-        const auto alpha = ConvertRawValueTrack(output, source, so + 20u, 2u, zeroShort, windows, sequences, externalBySequence);
+        const auto alpha = ConvertRawValueTrack(output, source, so + 20u, 2u, opaqueShort, windows, sequences, externalBySequence);
         std::copy(rgb.begin(), rgb.end(), rec.begin() + 0u);
         std::copy(alpha.begin(), alpha.end(), rec.begin() + 28u);
         output.Patch(to, rec.data(), rec.size());
@@ -199,13 +199,13 @@ M2ArrayRef ConvertWotlkTransparency(
     constexpr std::size_t targetStride = 28u;
     ValidateRecords(source, sourceTransparency, sourceStride, "Transparency");
     const auto target = ReserveTarget(output, sourceTransparency.count, targetStride);
-    const std::vector<std::uint8_t> zeroShort(2u, 0u);
+    const std::vector<std::uint8_t> opaqueShort{0xffu, 0x7fu};
 
     for (std::uint32_t i = 0u; i < sourceTransparency.count; ++i)
     {
         const std::size_t so = static_cast<std::size_t>(sourceTransparency.offset) + static_cast<std::size_t>(i) * sourceStride;
         const std::uint32_t to = target.offset + i * static_cast<std::uint32_t>(targetStride);
-        const auto alpha = ConvertRawValueTrack(output, source, so, 2u, zeroShort, windows, sequences, externalBySequence);
+        const auto alpha = ConvertRawValueTrack(output, source, so, 2u, opaqueShort, windows, sequences, externalBySequence);
         output.Patch(to, alpha.data(), alpha.size());
     }
     return target;
