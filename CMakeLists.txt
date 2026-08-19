@@ -30,6 +30,7 @@ add_library(turtle335_core
     src/m2/LegacyTrack.cpp
     src/m2/RibbonWriter.cpp
     src/m2/ParticleWriter.cpp
+    src/m2/ClassicM2Validator.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -120,6 +121,9 @@ target_link_libraries(turtle335_ribbon_writer_tests PRIVATE turtle335_core)
 add_executable(turtle335_particle_writer_tests tests/test_particle_writer.cpp)
 target_link_libraries(turtle335_particle_writer_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_classic_m2_validator_tests tests/test_classic_m2_validator.cpp)
+target_link_libraries(turtle335_classic_m2_validator_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -140,3 +144,4 @@ add_test(NAME turtle335_raw_wotlk_pipeline_tests COMMAND turtle335_raw_wotlk_pip
 add_test(NAME turtle335_m2_core_tests COMMAND turtle335_m2_core_tests)
 add_test(NAME turtle335_ribbon_writer_tests COMMAND turtle335_ribbon_writer_tests)
 add_test(NAME turtle335_particle_writer_tests COMMAND turtle335_particle_writer_tests)
+add_test(NAME turtle335_classic_m2_validator_tests COMMAND turtle335_classic_m2_validator_tests)
