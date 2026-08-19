@@ -1,4 +1,5 @@
 #include "turtle335/m2/ParticleWriter.h"
+#include "turtle335/m2/ExternalAnim.h"
 #include "turtle335/m2/LegacyTrack.h"
 
 #include <algorithm>
@@ -168,13 +169,27 @@ std::vector<std::uint8_t> ZeroKeyForInterpolation(const std::uint16_t interpolat
     return std::vector<std::uint8_t>(baseSize*multiplier,0u);
 }
 
+WotlkTrackData ParseParticleTrack(
+    const std::vector<std::uint8_t>& source,
+    const std::size_t trackOffset,
+    const std::size_t keySize,
+    const std::vector<WotlkM2Sequence>& sequences,
+    const std::vector<const std::vector<std::uint8_t>*>& externalBySequence)
+{
+    return sequences.empty()
+        ? ParseWotlkTrack(source,trackOffset,keySize)
+        : ParseWotlkTrackWithExternal(source,trackOffset,keySize,sequences,externalBySequence);
+}
+
 } // namespace
 
 ParticleConversionResult ConvertWotlkParticles(
     BinaryBuilder& output,
     const std::vector<std::uint8_t>& source,
     const M2ArrayRef sourceParticles,
-    const std::vector<ClassicSequenceWindow>& windows)
+    const std::vector<ClassicSequenceWindow>& windows,
+    const std::vector<WotlkM2Sequence>& sequences,
+    const std::vector<const std::vector<std::uint8_t>*>& externalBySequence)
 {
     ParticleConversionResult result;
     result.target.count=sourceParticles.count;
@@ -211,8 +226,10 @@ ParticleConversionResult ConvertWotlkParticles(
         {
             const auto interpolation=ReadU16(source,so+kSourceFloatTracks[t]);
             const std::size_t keySize=4u*((interpolation==2u || interpolation==3u)?3u:1u);
-            const auto wt=ParseWotlkTrack(source,so+kSourceFloatTracks[t],keySize);
-            const auto flat=FlattenLegacyValueTrack(wt,windows,ZeroKeyForInterpolation(interpolation,4u));
+            const auto wt=ParseParticleTrack(
+                source,so+kSourceFloatTracks[t],keySize,sequences,externalBySequence);
+            const auto flat=FlattenLegacyValueTrack(
+                wt,windows,ZeroKeyForInterpolation(interpolation,4u),LegacySingleKeyPolicy::PerSequence);
             const auto ct=SerializeClassicTrack(output,wt,flat);
             std::copy(ct.begin(),ct.end(),rec.begin()+static_cast<std::ptrdiff_t>(kTargetFloatTracks[t]));
         }
@@ -272,7 +289,8 @@ ParticleConversionResult ConvertWotlkParticles(
 
         const auto enabledInterpolation=ReadU16(source,so+456u);
         const std::size_t enabledKeySize=(enabledInterpolation==2u || enabledInterpolation==3u)?3u:1u;
-        const auto enabled=ParseWotlkTrack(source,so+456u,enabledKeySize);
+        const auto enabled=ParseParticleTrack(
+            source,so+456u,enabledKeySize,sequences,externalBySequence);
         FlattenedLegacyTrack enabledFlat;
         if (enabled.timestamps.empty())
         {
@@ -281,7 +299,8 @@ ParticleConversionResult ConvertWotlkParticles(
         }
         else
         {
-            enabledFlat=FlattenLegacyValueTrack(enabled,windows,ZeroKeyForInterpolation(enabledInterpolation,1u));
+            enabledFlat=FlattenLegacyValueTrack(
+                enabled,windows,ZeroKeyForInterpolation(enabledInterpolation,1u),LegacySingleKeyPolicy::PerSequence);
         }
         const auto enabledClassic=SerializeClassicTrack(output,enabled,enabledFlat);
         std::copy(enabledClassic.begin(),enabledClassic.end(),rec.begin()+476u);
