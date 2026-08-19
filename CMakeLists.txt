@@ -25,6 +25,8 @@ add_library(turtle335_core
     src/adt/WdtWriter.cpp
     src/adt/WotlkWdtReader.cpp
     src/dbc/LiquidTypeDbc.cpp
+    src/m2/WotlkM2Reader.cpp
+    src/m2/AnimationMetadata.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -54,6 +56,9 @@ target_link_libraries(turtle335_probe_adt PRIVATE turtle335_core)
 
 add_executable(turtle335_probe_map tools/probe_wotlk_map.cpp)
 target_link_libraries(turtle335_probe_map PRIVATE turtle335_core)
+
+add_executable(turtle335_probe_m2 tools/probe_wotlk_m2.cpp)
+target_link_libraries(turtle335_probe_m2 PRIVATE turtle335_core)
 
 add_executable(turtle335_core_tests tests/test_adt_core.cpp)
 target_link_libraries(turtle335_core_tests PRIVATE turtle335_core)
@@ -103,6 +108,9 @@ target_link_libraries(turtle335_wotlk_wdt_reader_tests PRIVATE turtle335_core)
 add_executable(turtle335_raw_wotlk_pipeline_tests tests/test_raw_wotlk_pipeline.cpp)
 target_link_libraries(turtle335_raw_wotlk_pipeline_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_m2_core_tests tests/test_m2_core.cpp)
+target_link_libraries(turtle335_m2_core_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -120,3 +128,4 @@ add_test(NAME turtle335_wotlk_adt_normalizer_tests COMMAND turtle335_wotlk_adt_n
 add_test(NAME turtle335_liquid_type_dbc_tests COMMAND turtle335_liquid_type_dbc_tests)
 add_test(NAME turtle335_wotlk_wdt_reader_tests COMMAND turtle335_wotlk_wdt_reader_tests)
 add_test(NAME turtle335_raw_wotlk_pipeline_tests COMMAND turtle335_raw_wotlk_pipeline_tests)
+add_test(NAME turtle335_m2_core_tests COMMAND turtle335_m2_core_tests)
