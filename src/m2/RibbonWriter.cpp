@@ -1,4 +1,5 @@
 #include "turtle335/m2/RibbonWriter.h"
+#include "turtle335/m2/ExternalAnim.h"
 #include "turtle335/m2/LegacyTrack.h"
 
 #include <algorithm>
@@ -75,7 +76,9 @@ RibbonConversionResult ConvertWotlkRibbons(
     BinaryBuilder& output,
     const std::vector<std::uint8_t>& source,
     const M2ArrayRef sourceRibbons,
-    const std::vector<ClassicSequenceWindow>& windows)
+    const std::vector<ClassicSequenceWindow>& windows,
+    const std::vector<WotlkM2Sequence>& sequences,
+    const std::vector<const std::vector<std::uint8_t>*>& externalBySequence)
 {
     RibbonConversionResult result;
     result.target.count=sourceRibbons.count;
@@ -107,9 +110,13 @@ RibbonConversionResult ConvertWotlkRibbons(
             const std::uint16_t interpolation=ReadU16(source,so+s.src);
             const std::size_t multiplier=(interpolation==2u || interpolation==3u) ? 3u : 1u;
             const std::size_t keySize=s.baseKeySize*multiplier;
-            const auto wt=ParseWotlkTrack(source,so+s.src,keySize);
+            const auto wt = sequences.empty()
+                ? ParseWotlkTrack(source,so+s.src,keySize)
+                : ParseWotlkTrackWithExternal(
+                    source,so+s.src,keySize,sequences,externalBySequence);
             const auto defaultKey=ExpandDefaultForInterpolation(BaseDefault(s.baseKeySize,s.colorOnes),interpolation);
-            const auto flat=FlattenLegacyValueTrack(wt,windows,defaultKey);
+            const auto flat=FlattenLegacyValueTrack(
+                wt,windows,defaultKey,LegacySingleKeyPolicy::PerSequence);
             const auto ct=SerializeClassicTrack(output,wt,flat);
             std::copy(ct.begin(),ct.end(),rec.begin()+static_cast<std::ptrdiff_t>(s.dst));
         }
