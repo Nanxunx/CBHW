@@ -1,0 +1,123 @@
+#include "turtle335/m2/AuxiliaryTrackWriters.h"
+
+#include <cassert>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <vector>
+
+namespace {
+
+void PutU16(std::vector<std::uint8_t>& d, const std::size_t o, const std::uint16_t v)
+{
+    d[o] = static_cast<std::uint8_t>(v & 0xffu);
+    d[o + 1u] = static_cast<std::uint8_t>((v >> 8u) & 0xffu);
+}
+
+void PutU32(std::vector<std::uint8_t>& d, const std::size_t o, const std::uint32_t v)
+{
+    d[o] = static_cast<std::uint8_t>(v & 0xffu);
+    d[o + 1u] = static_cast<std::uint8_t>((v >> 8u) & 0xffu);
+    d[o + 2u] = static_cast<std::uint8_t>((v >> 16u) & 0xffu);
+    d[o + 3u] = static_cast<std::uint8_t>((v >> 24u) & 0xffu);
+}
+
+std::uint32_t GetU32(const std::vector<std::uint8_t>& d, const std::size_t o)
+{
+    return static_cast<std::uint32_t>(d[o]) |
+           (static_cast<std::uint32_t>(d[o + 1u]) << 8u) |
+           (static_cast<std::uint32_t>(d[o + 2u]) << 16u) |
+           (static_cast<std::uint32_t>(d[o + 3u]) << 24u);
+}
+
+void PutF32(std::vector<std::uint8_t>& d, const std::size_t o, const float value)
+{
+    std::uint32_t bits = 0u;
+    std::memcpy(&bits, &value, sizeof(bits));
+    PutU32(d, o, bits);
+}
+
+float GetF32(const std::vector<std::uint8_t>& d, const std::size_t o)
+{
+    const auto bits = GetU32(d, o);
+    float value = 0.0f;
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+} // namespace
+
+int main()
+{
+    using namespace turtle335::m2;
+
+    constexpr std::uint32_t colorOff = 32u;
+    constexpr std::uint32_t transOff = 72u;
+    constexpr std::uint32_t texAnimOff = 92u;
+    constexpr std::uint32_t attachOff = 152u;
+    std::vector<std::uint8_t> source(320u, 0u);
+
+    // Color RGB: one outer group / one key. Generic legacy policy keeps this
+    // as a constant no-range track rather than applying Ribbon/Particle's
+    // one-sequence start/end expansion.
+    PutU16(source, colorOff + 0u, 0u);
+    PutU16(source, colorOff + 2u, 0xffffu);
+    PutU32(source, colorOff + 4u, 1u); PutU32(source, colorOff + 8u, 250u);
+    PutU32(source, colorOff + 12u, 1u); PutU32(source, colorOff + 16u, 258u);
+    PutU32(source, 250u, 1u); PutU32(source, 254u, 282u);
+    PutU32(source, 258u, 1u); PutU32(source, 262u, 286u);
+    PutU32(source, 282u, 7u);
+    PutF32(source, 286u, 0.25f);
+    PutF32(source, 290u, 0.5f);
+    PutF32(source, 294u, 1.0f);
+    // Color alpha is empty.
+    PutU16(source, colorOff + 20u + 2u, 0xffffu);
+
+    // Empty Transparency and TextureAnimation tracks.
+    PutU16(source, transOff + 2u, 0xffffu);
+    PutU16(source, texAnimOff + 2u, 0xffffu);
+    PutU16(source, texAnimOff + 20u + 2u, 0xffffu);
+    PutU16(source, texAnimOff + 40u + 2u, 0xffffu);
+
+    // Attachment fixed prefix plus empty enabled track.
+    for (std::size_t i = 0u; i < 20u; ++i)
+        source[attachOff + i] = static_cast<std::uint8_t>(0x40u + i);
+    PutU16(source, attachOff + 20u + 2u, 0xffffu);
+
+    WotlkM2Sequence sequence{};
+    sequence.animationId = 0u;
+    sequence.length = 100u;
+    sequence.flags = 0x20u;
+    const std::vector<WotlkM2Sequence> sequences{sequence};
+    const std::vector<ClassicSequenceWindow> windows{{3333u, 3433u}};
+    const std::vector<const std::vector<std::uint8_t>*> sidecars{nullptr};
+
+    BinaryBuilder output(std::vector<std::uint8_t>(324u, 0u));
+    const auto colors = ConvertWotlkColors(output, source, M2ArrayRef{1u, colorOff}, windows, sequences, sidecars);
+    const auto transparency = ConvertWotlkTransparency(output, source, M2ArrayRef{1u, transOff}, windows, sequences, sidecars);
+    const auto texAnims = ConvertWotlkTextureAnimations(output, source, M2ArrayRef{1u, texAnimOff}, windows, sequences, sidecars);
+    const auto attachments = ConvertWotlkAttachments(output, source, M2ArrayRef{1u, attachOff}, windows, sequences, sidecars);
+
+    assert(colors.count == 1u && colors.offset == 324u);
+    const auto& d = output.Bytes();
+
+    // RGB Classic block at +0: Ranges pair count 0, Times count 1, Keys count 1.
+    assert(GetU32(d, colors.offset + 4u) == 0u);
+    assert(GetU32(d, colors.offset + 12u) == 1u);
+    assert(GetU32(d, colors.offset + 20u) == 1u);
+    const auto timeOff = GetU32(d, colors.offset + 16u);
+    const auto keyOff = GetU32(d, colors.offset + 24u);
+    assert(GetU32(d, timeOff) == 7u);
+    assert(GetF32(d, keyOff + 0u) == 0.25f);
+    assert(GetF32(d, keyOff + 4u) == 0.5f);
+    assert(GetF32(d, keyOff + 8u) == 1.0f);
+
+    assert(transparency.count == 1u);
+    assert(texAnims.count == 1u);
+    assert(attachments.count == 1u);
+    for (std::size_t i = 0u; i < 20u; ++i)
+        assert(d[attachments.offset + i] == static_cast<std::uint8_t>(0x40u + i));
+
+    std::cout << "PASS auxiliary track writers\n";
+    return 0;
+}
