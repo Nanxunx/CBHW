@@ -47,18 +47,18 @@ int main()
     for (std::size_t i = 0u; i < 12u; ++i)
         source[eventOff + 12u + i] = static_cast<std::uint8_t>(0x20u + i);
 
-    // Two per-sequence event time groups. First empty, second has two events
-    // whose payload is in an external .anim sidecar.
+    // Two per-sequence event time groups. First empty, second has one event
+    // whose payload begins at offset zero in an external .anim sidecar. Paired
+    // successful 1.12 targets duplicate a one-time group at sequence start/end.
     PutU16(source, eventOff + 24u + 0u, 0u);
     PutU16(source, eventOff + 24u + 2u, 0xffffu);
     PutU32(source, eventOff + 24u + 4u, 2u);
     PutU32(source, eventOff + 24u + 8u, 80u);
     PutU32(source, 80u, 0u); PutU32(source, 84u, 0u);
-    PutU32(source, 88u, 2u); PutU32(source, 92u, 4u);
+    PutU32(source, 88u, 1u); PutU32(source, 92u, 0u);
 
-    std::vector<std::uint8_t> sidecar(16u, 0u);
-    PutU32(sidecar, 4u, 10u);
-    PutU32(sidecar, 8u, 20u);
+    std::vector<std::uint8_t> sidecar(8u, 0u);
+    PutU32(sidecar, 0u, 10u);
 
     WotlkM2Sequence embedded{};
     embedded.animationId = 0u;
@@ -97,7 +97,30 @@ int main()
     assert(GetU32(d, rangeOff + 16u) == 0u && GetU32(d, rangeOff + 20u) == 0u);
     const auto timeOff = GetU32(d, timer + 16u);
     assert(GetU32(d, timeOff + 0u) == 6776u);
-    assert(GetU32(d, timeOff + 4u) == 6786u);
+    assert(GetU32(d, timeOff + 4u) == 6976u);
+
+    // A single non-global time group remains relative/raw but carries one
+    // explicit range in successful historical targets.
+    std::vector<std::uint8_t> singleSource(160u, 0u);
+    PutU16(singleSource, eventOff + 24u + 2u, 0xffffu);
+    PutU32(singleSource, eventOff + 24u + 4u, 1u);
+    PutU32(singleSource, eventOff + 24u + 8u, 100u);
+    PutU32(singleSource, 100u, 1u); PutU32(singleSource, 104u, 120u);
+    PutU32(singleSource, 120u, 0u);
+    const std::vector<WotlkM2Sequence> oneSequence{embedded};
+    const std::vector<ClassicSequenceWindow> oneWindow{{3333u,3433u}};
+    const std::vector<const std::vector<std::uint8_t>*> noSidecar{nullptr};
+    BinaryBuilder singleOutput(std::vector<std::uint8_t>(324u,0u));
+    const auto singleEvents=ConvertWotlkEvents(
+        singleOutput,singleSource,M2ArrayRef{1u,eventOff},oneWindow,oneSequence,noSidecar);
+    const auto& sd=singleOutput.Bytes();
+    const std::size_t st=static_cast<std::size_t>(singleEvents.offset)+24u;
+    assert(GetU32(sd,st+4u)==1u);
+    assert(GetU32(sd,st+12u)==1u);
+    const auto sr=GetU32(sd,st+8u);
+    const auto sx=GetU32(sd,st+16u);
+    assert(GetU32(sd,sr+0u)==0u && GetU32(sd,sr+4u)==1u);
+    assert(GetU32(sd,sx)==0u);
 
     std::cout << "PASS event writer\n";
     return 0;
