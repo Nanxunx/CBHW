@@ -140,9 +140,10 @@ The V4.6 whole-M2 branch has now completed a real Windows VS2022 x64 Debug build
 
 The current M2 gate is selected real-model whole-output Golden regression, not compilation.
 
-After building the branch locally, run from the repository root:
+After building the branch locally, update the checkout and run from the repository root:
 
 ```powershell
+git pull
 powershell -ExecutionPolicy Bypass -File .\tools\modelport\Run_V46_SelectedGolden.ps1
 ```
 
@@ -153,7 +154,7 @@ E:\335_FinalExtract_V5
 E:\335to112_Converted_FinalExtract_V1
 ```
 
-The runner reuses the V4.4 targeted selector when needed, adds small static and ordinary-animation baselines, runs the actual `turtle335_convert_m2.exe`, and packages source M2/skin/anim sidecars, generated canonical v256 output, historical successful 1.12 targets, logs and hashes for semantic comparison.
+The runner reuses the V4.4 targeted selector when needed, adds small static and ordinary-animation baselines, runs the actual `turtle335_convert_m2.exe`, and packages source M2/skin/anim sidecars, generated canonical v256 output, historical successful 1.12 targets, logs and hashes for semantic comparison. Native conversion failures are collected per sample instead of aborting the entire evidence run; Light-bearing models remain intentionally reference-gated.
 
 Latest detailed checkpoint: `docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-20_0335.md`.
 
