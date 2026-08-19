@@ -27,6 +27,8 @@ add_library(turtle335_core
     src/dbc/LiquidTypeDbc.cpp
     src/m2/WotlkM2Reader.cpp
     src/m2/AnimationMetadata.cpp
+    src/m2/LegacyTrack.cpp
+    src/m2/RibbonWriter.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -111,6 +113,9 @@ target_link_libraries(turtle335_raw_wotlk_pipeline_tests PRIVATE turtle335_core)
 add_executable(turtle335_m2_core_tests tests/test_m2_core.cpp)
 target_link_libraries(turtle335_m2_core_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_ribbon_writer_tests tests/test_ribbon_writer.cpp)
+target_link_libraries(turtle335_ribbon_writer_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -129,3 +134,4 @@ add_test(NAME turtle335_liquid_type_dbc_tests COMMAND turtle335_liquid_type_dbc_
 add_test(NAME turtle335_wotlk_wdt_reader_tests COMMAND turtle335_wotlk_wdt_reader_tests)
 add_test(NAME turtle335_raw_wotlk_pipeline_tests COMMAND turtle335_raw_wotlk_pipeline_tests)
 add_test(NAME turtle335_m2_core_tests COMMAND turtle335_m2_core_tests)
+add_test(NAME turtle335_ribbon_writer_tests COMMAND turtle335_ribbon_writer_tests)
