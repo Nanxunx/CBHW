@@ -129,12 +129,31 @@ WotlkTrackData ParseWotlkTrack(const std::vector<std::uint8_t>& source, const st
     return result;
 }
 
-FlattenedLegacyTrack FlattenLegacyValueTrack(const WotlkTrackData& track, const std::vector<ClassicSequenceWindow>& windows, const std::vector<std::uint8_t>& defaultKey)
+FlattenedLegacyTrack FlattenLegacyValueTrack(
+    const WotlkTrackData& track,
+    const std::vector<ClassicSequenceWindow>& windows,
+    const std::vector<std::uint8_t>& defaultKey,
+    const LegacySingleKeyPolicy singleKeyPolicy)
 {
     if (track.timestamps.size() != track.keys.size())
         throw std::runtime_error("track outer timestamp/key size mismatch");
     FlattenedLegacyTrack out;
     if (track.timestamps.empty()) return out;
+
+    // Generic legacy blocks (Bone/Color/Transparency/TexAnim/Attachment/
+    // Light/Camera) use a historical constant-track shortcut when the whole
+    // nested source track contains one outer group with one key. Ribbon and
+    // Particle Golden targets deliberately opt out via PerSequence.
+    if (singleKeyPolicy == LegacySingleKeyPolicy::ConstantNoRanges &&
+        track.timestamps.size() == 1u &&
+        track.timestamps[0].size() == 1u)
+    {
+        if (track.keys[0].size() != 1u)
+            throw std::runtime_error("constant one-key track timestamp/key mismatch");
+        out.timestamps = track.timestamps[0];
+        out.keys = track.keys[0];
+        return out;
+    }
 
     if (track.globalSequence >= 0)
     {
