@@ -1,6 +1,6 @@
 # 模型移植项目 — 当前权威记忆
 
-更新时间：2026-08-19（V4.5 Ribbon Golden 阶段）
+更新时间：2026-08-19（V4.5 Effect Writer / 精确 refinement 阶段）
 
 权威仓库：
 
@@ -16,6 +16,7 @@ docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_1713.md
 docs/research/M2_GOLDEN_REFERENCE_V45_2026-08-19.md
 docs/research/M2_GOLDEN_REFERENCE_V45_WRITER_CORRECTION_2026-08-19.md
 docs/research/M2_GOLDEN_REFERENCE_V45_RIBBON_2026-08-19.md
+docs/research/M2_CPP_EFFECT_WRITERS_V45_2026-08-19.md
 ```
 
 ## 最终目标
@@ -47,63 +48,79 @@ Particle models              5570
 - external `.anim`: validated cases 原样复制。
 - TextureAnimation: 已有统一 legacy track 路径。
 
-## Playable V4.5 最新验证
+## Playable V4.5
 
-V4.4 自动选出的 8 个 `01_RuleMismatch` 成功112 target，使用当前 `playable_lookup_v45.py` 后：
+V4.4 自动选出的 8 个 `01_RuleMismatch` 成功112 target，使用当前 `playable_lookup_v45.py`：
 
 ```text
 8 / 8 models PASS
 226 / 226 records per model exact
 ```
 
-旧 V4 的核心错误包括 `40->0`、`121->0` 以及 170 系过早直接落到16；当前 V4.5 的 model-aware fallback 能按模型已有 AnimationID 解析到19/17/16。
+旧 V4 的核心错误包括 `40->0`、`121->0` 以及 170 系过早直接落到16；当前 V4.5 model-aware fallback 能按模型实际拥有的 AnimationID 解析到19/17/16。
 
 仍需运行 `Run_ModelPort_Refine_V45.ps1` 对旧498 paths 精确重验后才能冻结最终 graph。
 
-## Ribbon — GOLDEN_OFFLINE_READY
+## Ribbon — Python GOLDEN_OFFLINE_READY / C++ 已接入
 
-V4.4 6组真正 Ribbon Golden 已完成逐字节/语义核验：
-
-```text
-Golden models                6
-RibbonEmitters             420
-animation tracks          2520
-static mapping pass        420/420
-track semantic pass       2520/2520
-```
-
-结构：
+Golden：
 
 ```text
-WotLK v264 RibbonEmitter   176B
-Classic/Turtle v256        220B
+6 paired models
+420 RibbonEmitters
+2520 animation tracks
+static mapping       420/420 PASS
+track semantics     2520/2520 PASS
+WotLK stride             176B
+Classic/Turtle stride    220B
 ```
 
-新增：
+Python oracle：
 
 ```text
 tools/modelport/ribbon_converter_v45.py
 tools/modelport/validate_ribbon_golden_v45.py
-tools/modelport/test_ribbon_converter_v45.py
 ```
 
-实际生成的 Classic Ribbon block 再解析后，对 420 emitters / 2520 tracks 全部与成功112 Golden semantic match。Ribbon 不再继续宽泛研究；下一步直接迁移到 C++ whole-M2 writer，再做一个 Turtle 1.18.1 实机 Ribbon regression。
+C++：
 
-## Particle
+```text
+include/turtle335/m2/RibbonWriter.h
+src/m2/RibbonWriter.cpp
+tests/test_ribbon_writer.cpp
+```
 
-当前物理 writer oracle：
+本轮已把 `LegacyTrack.cpp` / `RibbonWriter.cpp` 正式加入 CMake。C++ Ribbon writer 已修正 color 空轨默认 `(1,1,1)`、spline key-size 处理以及必需 includes。隔离的 Linux `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror` 编译 + regression 已 PASS；完整 GitHub Actions/Windows 构建仍需继续观察，不能提前宣称全平台 production-ready。
+
+## Particle V2 — C++ writer 已开始生产化
+
+Python oracle：
 
 ```text
 tools/modelport/particle_v2.py
 ```
 
-V4.4 selected 10 Particle Golden pairs / 772 emitters 已重新 byte-level 核验。确认：
+selected Golden：
 
 ```text
-source stride 476
-target stride 504
-772 selected emitters mapped
+10 paired models
+772 ParticleEmitters
+8492 versioned animation tracks
+source stride 476B
+target stride 504B
 ```
+
+C++ 新增：
+
+```text
+include/turtle335/m2/ParticleWriter.h
+src/m2/ParticleWriter.cpp
+tests/test_particle_writer.cpp
+```
+
+已接入 CMake。当前实现覆盖：flags16-bit downgrade、filename relocation、10 float tracks、Fake color/alpha/size、head/tail cells、最终 504B tail layout、Rot2 -0 normalization、Trans XY、enabled legacy track。`nUnknownReference != 0` 继续硬性 BLOCK，禁止猜测。
+
+隔离 Linux `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror` 编译 + synthetic regression 已 PASS。完整 Golden/CMake/Windows CI 仍需继续验证。
 
 最终 target tail layout：
 
@@ -126,32 +143,30 @@ target stride 504
 504 end
 ```
 
-nonzero unknown-reference 仍 BLOCK，直到得到成功 Golden。
-
 ## 当前代码方向
 
-Python Golden/effect writer 是算法 oracle；生产实现迁移进 C++：
-
 ```text
-Reader
- -> normalized semantic model
- -> downgrade policy
- -> v256 writer
+WotlkM2Reader
+ -> AnimationMetadata / Playable
+ -> LegacyTrack
+ -> RibbonWriter
+ -> ParticleWriter
+ -> whole-M2 v256 writer（下一组合阶段）
  -> strict validator
- -> minimal real-client regression
+ -> minimal Turtle 1.18.1 regression
 ```
 
-C++ M2 core 已有 `WotlkM2Reader`、`AnimationMetadata` 等基础组件。
+Python Golden writer 继续作为算法 oracle；最终用户工具必须走标准 C++/标准 MD20 v256，不依赖 Orange/private runtime。
 
-## 当前唯一需要用户执行的本地 refinement
+## 当前唯一需要用户提供的输入
 
-运行：
+无需再上传普通模型，也不要重新跑全库扫描。请运行：
 
 ```text
 tools/modelport/Run_ModelPort_Refine_V45.ps1
 ```
 
-只读取 V4.4 已知失败路径，不广扫全库。上传：
+它只读取 V4.4 已知失败路径。上传：
 
 ```text
 E:\ModelPort_GoldenUpload_V45_Refine\ModelPort_GoldenReference_V45_Refine_ALL.zip
@@ -162,11 +177,10 @@ E:\ModelPort_GoldenUpload_V45_Refine\ModelPort_GoldenReference_V45_Refine_ALL.zi
 ```text
 freeze remaining Playable graph
  -> classify 29/27 Sequence/Timeline exceptions
- -> C++ Ribbon writer
- -> C++ Particle V2 writer
- -> whole-M2 v264+skin -> v256 writer
+ -> lock C++ effect writers
+ -> whole-M2 v264 + skin -> v256 serializer
  -> strict validator
- -> minimal Turtle 1.18.1 regression
+ -> 最少量 Turtle 1.18.1 实机 regression
 ```
 
-ADT/WDT/WDL 与 WMO/完整 DBC/MPQ 自动化属于后续阶段，不能把当前 M2 进度误称为“所有地图/建筑均完成”。
+ADT/WDT/WDL 与 WMO/完整 DBC/MPQ 自动化属于后续统一流水线阶段；当前不能把 M2 进度误称为“所有地图/建筑均完成”。
