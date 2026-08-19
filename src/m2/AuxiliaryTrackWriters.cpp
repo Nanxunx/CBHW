@@ -108,6 +108,43 @@ std::array<std::uint8_t, 28> ConvertQuaternionTrack(
     return SerializeClassicTrack(output, sourceTrack, flattened);
 }
 
+std::array<std::uint8_t, 28> ConvertEnabledTrack(
+    BinaryBuilder& output,
+    const std::vector<std::uint8_t>& source,
+    const std::size_t trackOffset,
+    const std::vector<ClassicSequenceWindow>& windows,
+    const std::vector<WotlkM2Sequence>& sequences,
+    const std::vector<const std::vector<std::uint8_t>*>& externalBySequence)
+{
+    const auto interpolation = static_cast<std::int16_t>(ReadU16(source, trackOffset));
+    const std::size_t multiplicity = (interpolation == 2 || interpolation == 3) ? 3u : 1u;
+    const auto sourceTrack = ParseWotlkTrackWithExternal(
+        source,
+        trackOffset,
+        multiplicity,
+        sequences,
+        externalBySequence);
+
+    FlattenedLegacyTrack flattened;
+    if (sourceTrack.timestamps.empty())
+    {
+        // Real V4.4 attachment Golden: an empty WotLK enabled outer array is
+        // serialized by successful legacy targets as a constant enabled track.
+        // Do not emit an empty Classic track here.
+        flattened.timestamps.push_back(0u);
+        flattened.keys.push_back(std::vector<std::uint8_t>(multiplicity, 1u));
+    }
+    else
+    {
+        flattened = FlattenLegacyValueTrack(
+            sourceTrack,
+            windows,
+            std::vector<std::uint8_t>(multiplicity, 1u),
+            LegacySingleKeyPolicy::ConstantNoRanges);
+    }
+    return SerializeClassicTrack(output, sourceTrack, flattened);
+}
+
 M2ArrayRef ReserveTarget(
     BinaryBuilder& output,
     const std::uint32_t count,
@@ -216,7 +253,6 @@ M2ArrayRef ConvertWotlkAttachments(
     constexpr std::size_t targetStride = 48u;
     ValidateRecords(source, sourceAttachments, sourceStride, "Attachment");
     const auto target = ReserveTarget(output, sourceAttachments.count, targetStride);
-    const std::vector<std::uint8_t> zeroByte(1u, 0u);
 
     for (std::uint32_t i = 0u; i < sourceAttachments.count; ++i)
     {
@@ -224,7 +260,7 @@ M2ArrayRef ConvertWotlkAttachments(
         const std::uint32_t to = target.offset + i * static_cast<std::uint32_t>(targetStride);
         std::array<std::uint8_t, targetStride> rec{};
         std::copy_n(source.begin() + static_cast<std::ptrdiff_t>(so), 20u, rec.begin());
-        const auto enabled = ConvertRawValueTrack(output, source, so + 20u, 1u, zeroByte, windows, sequences, externalBySequence);
+        const auto enabled = ConvertEnabledTrack(output, source, so + 20u, windows, sequences, externalBySequence);
         std::copy(enabled.begin(), enabled.end(), rec.begin() + 20u);
         output.Patch(to, rec.data(), rec.size());
     }
