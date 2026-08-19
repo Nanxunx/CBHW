@@ -1,6 +1,6 @@
 # 模型移植项目 — 当前权威记忆
 
-更新时间：2026-08-19（V4.5 Effect Writer / 精确 refinement 阶段）
+更新时间：2026-08-19（V4.5 C++ Effects + Target Validator / 精确 refinement 阶段）
 
 权威仓库：
 
@@ -13,6 +13,7 @@ branch: main
 
 ```text
 docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_1713.md
+docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_V45_EFFECTS.md
 docs/research/M2_GOLDEN_REFERENCE_V45_2026-08-19.md
 docs/research/M2_GOLDEN_REFERENCE_V45_WRITER_CORRECTION_2026-08-19.md
 docs/research/M2_GOLDEN_REFERENCE_V45_RIBBON_2026-08-19.md
@@ -50,30 +51,18 @@ Particle models              5570
 
 ## Playable V4.5
 
-V4.4 自动选出的 8 个 `01_RuleMismatch` 成功112 target，使用当前 `playable_lookup_v45.py`：
+V4.4 自动选出的8个 `01_RuleMismatch` 成功112 target，当前 `playable_lookup_v45.py` 已做到：
 
 ```text
 8 / 8 models PASS
 226 / 226 records per model exact
 ```
 
-旧 V4 的核心错误包括 `40->0`、`121->0` 以及 170 系过早直接落到16；当前 V4.5 model-aware fallback 能按模型实际拥有的 AnimationID 解析到19/17/16。
-
-仍需运行 `Run_ModelPort_Refine_V45.ps1` 对旧498 paths 精确重验后才能冻结最终 graph。
+仍需 `Run_ModelPort_Refine_V45.ps1` 对旧498 paths 精确重验后才能冻结最终 graph。
 
 ## Ribbon — Python GOLDEN_OFFLINE_READY / C++ 已接入
 
-Golden：
-
-```text
-6 paired models
-420 RibbonEmitters
-2520 animation tracks
-static mapping       420/420 PASS
-track semantics     2520/2520 PASS
-WotLK stride             176B
-Classic/Turtle stride    220B
-```
+Golden：6 paired models / 420 emitters / 2520 tracks；static 420/420，track 2520/2520 PASS；WotLK176B -> Classic/Turtle220B。
 
 Python oracle：
 
@@ -90,27 +79,15 @@ src/m2/RibbonWriter.cpp
 tests/test_ribbon_writer.cpp
 ```
 
-本轮已把 `LegacyTrack.cpp` / `RibbonWriter.cpp` 正式加入 CMake。C++ Ribbon writer 已修正 color 空轨默认 `(1,1,1)`、spline key-size 处理以及必需 includes。隔离的 Linux `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror` 编译 + regression 已 PASS；完整 GitHub Actions/Windows 构建仍需继续观察，不能提前宣称全平台 production-ready。
+已加入 CMake。修正 color 空轨默认 `(1,1,1)`、spline key-size 与必需 includes。隔离 Linux `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror` 编译 + regression PASS；完整 Windows/Actions 仍需继续确认。
 
-## Particle V2 — C++ writer 已开始生产化
+## Particle V2 — C++ writer 已接入
 
-Python oracle：
+Python oracle：`tools/modelport/particle_v2.py`。
 
-```text
-tools/modelport/particle_v2.py
-```
+selected Golden：10 pairs / 772 emitters / 8492 versioned tracks；source476B -> target504B。
 
-selected Golden：
-
-```text
-10 paired models
-772 ParticleEmitters
-8492 versioned animation tracks
-source stride 476B
-target stride 504B
-```
-
-C++ 新增：
+C++：
 
 ```text
 include/turtle335/m2/ParticleWriter.h
@@ -118,11 +95,9 @@ src/m2/ParticleWriter.cpp
 tests/test_particle_writer.cpp
 ```
 
-已接入 CMake。当前实现覆盖：flags16-bit downgrade、filename relocation、10 float tracks、Fake color/alpha/size、head/tail cells、最终 504B tail layout、Rot2 -0 normalization、Trans XY、enabled legacy track。`nUnknownReference != 0` 继续硬性 BLOCK，禁止猜测。
+已加入 CMake。覆盖 flags16-bit downgrade、filename relocation、10 float tracks、Fake color/alpha/size、head/tail cells、504B target tail、Rot2 -0 normalization、Trans XY、enabled legacy track。`nUnknownReference != 0` 继续硬性 BLOCK。隔离 Linux strict GCC 编译 + synthetic regression PASS。
 
-隔离 Linux `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror` 编译 + synthetic regression 已 PASS。完整 Golden/CMake/Windows CI 仍需继续验证。
-
-最终 target tail layout：
+Particle target tail：
 
 ```text
 332 midpoint
@@ -143,6 +118,18 @@ tests/test_particle_writer.cpp
 504 end
 ```
 
+## Classic/Turtle v256 Strict Validator
+
+已新增并接入 CMake：
+
+```text
+include/turtle335/m2/ClassicM2Validator.h
+src/m2/ClassicM2Validator.cpp
+tests/test_classic_m2_validator.cpp
+```
+
+只验证已有 Golden 证据的结构，不猜未知块：MD20/version256、animations68、AnimationLookup、Playable226、bones108、vertices48、embedded View44 + child arrays、textures16、TexAnim84、lookup arrays、Ribbon220、Particle504。
+
 ## 当前代码方向
 
 ```text
@@ -152,11 +139,11 @@ WotlkM2Reader
  -> RibbonWriter
  -> ParticleWriter
  -> whole-M2 v256 writer（下一组合阶段）
- -> strict validator
+ -> ClassicM2Validator
  -> minimal Turtle 1.18.1 regression
 ```
 
-Python Golden writer 继续作为算法 oracle；最终用户工具必须走标准 C++/标准 MD20 v256，不依赖 Orange/private runtime。
+最终用户工具必须输出标准 MD20 v256，不依赖 Orange/private runtime。
 
 ## 当前唯一需要用户提供的输入
 
@@ -177,9 +164,9 @@ E:\ModelPort_GoldenUpload_V45_Refine\ModelPort_GoldenReference_V45_Refine_ALL.zi
 ```text
 freeze remaining Playable graph
  -> classify 29/27 Sequence/Timeline exceptions
- -> lock C++ effect writers
+ -> lock effect writer rules
  -> whole-M2 v264 + skin -> v256 serializer
- -> strict validator
+ -> ClassicM2Validator
  -> 最少量 Turtle 1.18.1 实机 regression
 ```
 
