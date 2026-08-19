@@ -1,51 +1,65 @@
 # 模型移植项目 — 当前权威记忆
 
-更新时间：2026-08-19 14:58 +08:00
+更新时间：2026-08-19 15:05 +08:00
 
 本文件是 `NansenCore/Turtle335Converter` 的当前记忆入口。
 
-## 最新 M2 / ModelPort 检查点
+## 当前扫描策略：V4.3 Targeted
+
+用户指出 V4.2 对约11597 pair 全量深扫描存在明显冗余。该判断成立。
+
+V4.2 保留为“全库 production gate”工具，但当前日常研究入口切换为 V4.3 两阶段定向扫描：
 
 ```text
-docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_1458.md
-docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_0702.md
-docs/research/M2_THIRD_BATCH_SCAN_RECOVERY_V41_2026-08-19.md
-docs/research/M2_GOLDEN_REFERENCE_SECOND_BATCH_V4_2026-08-19.md
+tools/modelport/modelport_targeted_scan_v43.py
+tools/modelport/Run_ModelPort_TargetedScan_V43.ps1
 ```
 
-## 当前扫描器
+V4.3：
 
-V4.1 二进制解析逻辑仍是当前基础，但长扫描执行入口已升级为 V4.2 checkpoint/resume：
+```text
+Phase 1：全库只读取约324B M2 Header
+ -> 识别 Animation / Ribbon / Particle / TexAnim / Event / ExternalAnim
+ -> 检查 335 v264 / target v256 与基本 count 异常
+
+Phase 2：只对当前真正相关的模型做深度二进制比较
+ -> animations > 0
+ -> ribbons > 0
+ -> particles > 0
+ -> texanims > 0
+ -> events > 0
+ -> external .anim
+ -> version/count anomaly
+```
+
+普通静态模型不再运行 Sequence / AnimationLookup / 226 Playable 深度比较。
+
+自动优先打包：
+
+```text
+1. Rule mismatch
+2. true RibbonEmitter > 0
+3. Particle + one animation
+4. complex Particle
+5. Alias / SubAnimation
+```
+
+## V4.2 状态
+
+V4.2 checkpoint/resume 仍保留，用于未来需要“一次性全库证明 Playable production baseline”时运行：
 
 ```text
 tools/modelport/modelport_fullscan_v42_resume.py
 tools/modelport/Run_ModelPort_FullScan_V42_RESUME.ps1
 ```
 
-原因：用户实机 V4.1 扫描到约 `1750/11597` 后进入 Windows 休眠，恢复后 Python/PowerShell 进程没有恢复。V4.1 直到扫描结束才写最终 CSV，因此此前约1750条无法从磁盘恢复。
+但当前无需继续等待 V4.2 扫描完整11597对。
 
-V4.2 持久化：
-
-```text
-E:\ModelPort_GoldenUpload_ThirdBatch_V42\
-STAGING\00_Metadata\M2_FeatureIndex_335_112_V42.checkpoint.jsonl
-```
-
-每完成一对 M2 即追加 checkpoint；重新运行同一命令自动跳过已完成 RelativePath。不要依赖 Hibernate 保存扫描进程，也不要使用 `--fresh`，除非明确要从0重新开始。
-
-## V4.1 已确认基础
+## V4.1/V4 已确认基础
 
 第三批原 PowerShell 全库扫描的 `scan_errors=11597` 是扫描器故障，不是模型规则失败。自动挑出的6个 mismatch 经 V4.1 独立解析全部是假阳性。
 
-V4.1 已在：
-
-```text
-第三批6个假阳性 pair
-+
-第二批13个 Golden pair
-```
-
-共19个 pair 回归通过：
+V4.1 已在第三批6个假阳性 pair + 第二批13个 Golden pair，共19个 pair 回归通过：
 
 ```text
 scan_errors = 0
@@ -55,25 +69,9 @@ AnimationLookup mismatch = 0
 Playable mismatch = 0
 ```
 
-## Production gate
+第二批 13/13 成功 target 的 226 Playable records 已全部 exact match。
 
-Playable V4 第二批 13/13 exact 仍有效，但尚不能宣告整个约11597-pair 库 production-ready。
-
-必须完成 V4.2 全库扫描并满足：
-
-```text
-scan_errors == 0
-```
-
-然后检查：
-
-```text
-Playable V4 mismatch == 0
-```
-
-## 转换规则
-
-保持 Golden V4：
+## 当前 Golden V4 转换规则
 
 ```text
 MD20 v264 -> standard MD20 v256
@@ -85,7 +83,21 @@ quaternion -1 -> exact +1.0
 skin -> embedded View
 ```
 
-Golden Source 两个目录都只读：
+已验证：
+
+```text
+embedded View: 17/17
+普通 3D BLP: 39/39 SHA exact
+external .anim: 2/2 SHA exact
+TextureAnimation: 10 records
+Particle: 50 emitters（部分规则已确认，FULL writer尚未BATCH_READY）
+```
+
+Ribbon 仍缺真正 `nRibbonEmitters > 0` 的 Golden Sample，V4.3 必须按 Header 自动筛选，禁止按文件名猜。
+
+## Golden Source
+
+两个目录保持只读：
 
 ```text
 E:\335_FinalExtract_V5
