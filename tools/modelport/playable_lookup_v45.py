@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PlayableAnimationLookup V4.5.
+"""PlayableAnimationLookup canonical-226 baseline (V4.6).
 
 Evidence order:
 1. successful 1.12/Turtle-compatible Golden M2 targets;
 2. build12340 AnimationData.dbc field 5 as the primary fallback graph;
-3. a very small Golden override set for source rows whose field-5 value does
-   not reproduce the successful legacy target;
+3. a small Golden override set for source rows whose field-5 value does not
+   reproduce the successful legacy target;
 4. historical LKBC fallback logic as a cross-check only.
 
+V4.6 refinement result:
+- old V4.4 Playable failures: 498 models
+- V4.5 already passed: 453
+- remaining canonical-226 mismatches: 18 models / 20 records / 3 requested IDs
+- new Golden overrides: 28->27, 108->111, 112->111
+- 27 additional old-V4 failures are successful legacy targets with
+  PlayableAnimationLookup count 203 (20 models) or 1 (7 models), not the
+  canonical 226 layout used by our Turtle target writer.
+
 Important:
-- 226 records, each <int16 fallbackAnimationID, int16 flags>.
+- Canonical output is always 226 records, each <int16 fallbackAnimationID,
+  int16 flags>.
 - The graph is MODEL-AWARE at resolution time: follow fallback edges until the
   model actually has that AnimationID.
 - Do not use the old V4 hardcoded 170->16 family. build12340 field 5 shows the
@@ -28,6 +38,9 @@ PLAYABLE_COUNT = 226
 # Golden target corrections over build12340 AnimationData.dbc field 5.
 # 146->0 is also the intentional historic LKBC anti-loop override.
 GOLDEN_OVERRIDES: Dict[int, int] = {
+    28: 27,
+    108: 111,
+    112: 111,
     121: 14,
     146: 0,
     172: 16,
