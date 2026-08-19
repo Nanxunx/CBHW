@@ -19,6 +19,8 @@ RibbonConversionResult ConvertWotlkRibbons(
     BinaryBuilder& output,
     const std::vector<std::uint8_t>& source,
     M2ArrayRef sourceRibbons,
-    const std::vector<ClassicSequenceWindow>& windows);
+    const std::vector<ClassicSequenceWindow>& windows,
+    const std::vector<WotlkM2Sequence>& sequences = {},
+    const std::vector<const std::vector<std::uint8_t>*>& externalBySequence = {});
 
 } // namespace turtle335::m2
