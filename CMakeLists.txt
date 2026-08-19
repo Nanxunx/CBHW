@@ -33,6 +33,7 @@ add_library(turtle335_core
     src/m2/BoneWriter.cpp
     src/m2/AuxiliaryTrackWriters.cpp
     src/m2/CameraWriter.cpp
+    src/m2/EventWriter.cpp
     src/m2/ClassicM2Header.cpp
     src/m2/RibbonWriter.cpp
     src/m2/ParticleWriter.cpp
@@ -137,6 +138,9 @@ target_link_libraries(turtle335_auxiliary_track_writer_tests PRIVATE turtle335_c
 add_executable(turtle335_camera_writer_tests tests/test_camera_writer.cpp)
 target_link_libraries(turtle335_camera_writer_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_event_writer_tests tests/test_event_writer.cpp)
+target_link_libraries(turtle335_event_writer_tests PRIVATE turtle335_core)
+
 add_executable(turtle335_classic_m2_header_tests tests/test_classic_m2_header.cpp)
 target_link_libraries(turtle335_classic_m2_header_tests PRIVATE turtle335_core)
 
@@ -175,6 +179,7 @@ add_test(NAME turtle335_quaternion_codec_tests COMMAND turtle335_quaternion_code
 add_test(NAME turtle335_bone_writer_tests COMMAND turtle335_bone_writer_tests)
 add_test(NAME turtle335_auxiliary_track_writer_tests COMMAND turtle335_auxiliary_track_writer_tests)
 add_test(NAME turtle335_camera_writer_tests COMMAND turtle335_camera_writer_tests)
+add_test(NAME turtle335_event_writer_tests COMMAND turtle335_event_writer_tests)
 add_test(NAME turtle335_classic_m2_header_tests COMMAND turtle335_classic_m2_header_tests)
 add_test(NAME turtle335_ribbon_writer_tests COMMAND turtle335_ribbon_writer_tests)
 add_test(NAME turtle335_particle_writer_tests COMMAND turtle335_particle_writer_tests)
