@@ -31,6 +31,7 @@ add_library(turtle335_core
     src/m2/ExternalAnim.cpp
     src/m2/QuaternionCodec.cpp
     src/m2/BoneWriter.cpp
+    src/m2/AuxiliaryTrackWriters.cpp
     src/m2/ClassicM2Header.cpp
     src/m2/RibbonWriter.cpp
     src/m2/ParticleWriter.cpp
@@ -129,6 +130,9 @@ target_link_libraries(turtle335_quaternion_codec_tests PRIVATE turtle335_core)
 add_executable(turtle335_bone_writer_tests tests/test_bone_writer.cpp)
 target_link_libraries(turtle335_bone_writer_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_auxiliary_track_writer_tests tests/test_auxiliary_track_writers.cpp)
+target_link_libraries(turtle335_auxiliary_track_writer_tests PRIVATE turtle335_core)
+
 add_executable(turtle335_classic_m2_header_tests tests/test_classic_m2_header.cpp)
 target_link_libraries(turtle335_classic_m2_header_tests PRIVATE turtle335_core)
 
@@ -165,6 +169,7 @@ add_test(NAME turtle335_m2_core_tests COMMAND turtle335_m2_core_tests)
 add_test(NAME turtle335_external_anim_tests COMMAND turtle335_external_anim_tests)
 add_test(NAME turtle335_quaternion_codec_tests COMMAND turtle335_quaternion_codec_tests)
 add_test(NAME turtle335_bone_writer_tests COMMAND turtle335_bone_writer_tests)
+add_test(NAME turtle335_auxiliary_track_writer_tests COMMAND turtle335_auxiliary_track_writer_tests)
 add_test(NAME turtle335_classic_m2_header_tests COMMAND turtle335_classic_m2_header_tests)
 add_test(NAME turtle335_ribbon_writer_tests COMMAND turtle335_ribbon_writer_tests)
 add_test(NAME turtle335_particle_writer_tests COMMAND turtle335_particle_writer_tests)
