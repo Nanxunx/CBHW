@@ -38,6 +38,17 @@ struct WotlkM2Document
     M2ArrayRef textures{};
     M2ArrayRef transparency{};
     M2ArrayRef textureAnimations{};
+    M2ArrayRef textureReplace{};
+    M2ArrayRef renderFlags{};
+    M2ArrayRef boneLookup{};
+    M2ArrayRef textureLookup{};
+    M2ArrayRef textureUnitLookup{};
+    M2ArrayRef transparencyLookup{};
+    M2ArrayRef textureAnimationLookup{};
+    std::array<std::uint8_t, 56> boundsAndCollisionFloats{};
+    M2ArrayRef boundingTriangles{};
+    M2ArrayRef boundingVertices{};
+    M2ArrayRef boundingNormals{};
     M2ArrayRef attachments{};
     M2ArrayRef attachmentLookup{};
     M2ArrayRef events{};
@@ -75,9 +86,10 @@ struct M2FeatureReport
     bool hasDuplicateAnimationIds = false;
 };
 
-// Parse an MD20 v264 build-12340 model. Header and sequence/ribbon/particle
-// record-array bounds are validated; referenced track payloads are left to
-// feature-specific readers/writers.
+// Parse an MD20 v264 build-12340 model. The full fixed 304-byte WotLK header
+// is exposed so the canonical whole-M2 writer can copy/relocate every legacy
+// array it supports. Sequence/ribbon/particle fixed record arrays are bounds
+// checked here; feature-specific payload checks remain in their writers.
 WotlkM2Document ParseWotlkM2(const std::vector<std::uint8_t>& bytes);
 M2FeatureReport InspectM2Features(const WotlkM2Document& model);
 M2ConversionGate ClassifyM2(const WotlkM2Document& model, bool hasExternalAnimSidecar = false);
