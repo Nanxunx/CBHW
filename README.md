@@ -132,7 +132,7 @@ The remaining P0 gate is not compilation: it is a real unmodified WoW 3.3.5a bui
 
 ## V4.6 whole-M2 validation
 
-The V4.6 whole-M2 branch has now completed a real Windows VS2022 x64 Debug build and complete local CTest run:
+The V4.6 whole-M2 branch has completed a real Windows VS2022 x64 Debug build and complete local CTest run:
 
 ```text
 30/30 tests passed
@@ -140,21 +140,21 @@ The V4.6 whole-M2 branch has now completed a real Windows VS2022 x64 Debug build
 
 The current M2 gate is selected real-model whole-output Golden regression, not compilation.
 
-After building the branch locally, update the checkout and run from the repository root:
+Update the checkout and run from the repository root:
 
 ```powershell
 git pull
 powershell -ExecutionPolicy Bypass -File .\tools\modelport\Run_V46_SelectedGolden.ps1
 ```
 
-Default paired corpus roots used by the current research workflow are:
+Default paired corpus roots:
 
 ```text
 E:\335_FinalExtract_V5
 E:\335to112_Converted_FinalExtract_V1
 ```
 
-The runner reuses the V4.4 targeted selector when needed, adds small static and ordinary-animation baselines, runs the validated `turtle335_convert_m2.exe`, and packages source M2/skin/anim sidecars, generated canonical v256 output, historical successful 1.12 targets, logs and hashes for semantic comparison. Native conversion failures are collected per sample instead of aborting the entire evidence run; Light-bearing models remain intentionally reference-gated.
+The runner reuses the V4.4 targeted selector when needed, adds small static and ordinary-animation baselines, runs the validated `turtle335_convert_m2.exe`, and packages source M2/skin/anim sidecars, generated canonical v256 output, historical successful 1.12 targets, logs and hashes for semantic comparison. Native conversion failures are recorded per sample rather than aborting the evidence run; Light-bearing models remain reference-gated.
 
 Latest detailed checkpoint: `docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-20_0335.md`.
 
