@@ -127,7 +127,10 @@ int main(int argc, char** argv)
         for (std::size_t i = 0u; i < source.sequences.size(); ++i)
         {
             const auto& sequence = source.sequences[i];
-            if ((sequence.flags & 0x20u) != 0u)
+            // Alias sequences borrow payload storage from Sequence.Index; the
+            // core resolver follows that chain. Do not report a missing file
+            // for an alias-specific name that is not supposed to exist.
+            if ((sequence.flags & 0x20u) != 0u || (sequence.flags & 0x40u) != 0u)
                 continue;
 
             const fs::path animPath = directory /
