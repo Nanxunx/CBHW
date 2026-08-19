@@ -22,6 +22,12 @@ void PutU32(std::vector<std::uint8_t>& d, const std::size_t o, const std::uint32
     d[o + 3u] = static_cast<std::uint8_t>((v >> 24u) & 0xffu);
 }
 
+std::uint16_t GetU16(const std::vector<std::uint8_t>& d, const std::size_t o)
+{
+    return static_cast<std::uint16_t>(d[o]) |
+           static_cast<std::uint16_t>(static_cast<std::uint16_t>(d[o + 1u]) << 8u);
+}
+
 std::uint32_t GetU32(const std::vector<std::uint8_t>& d, const std::size_t o)
 {
     return static_cast<std::uint32_t>(d[o]) |
@@ -125,6 +131,57 @@ int main()
     const auto enabledKey = GetU32(d, enabled + 24u);
     assert(GetU32(d, enabledTime) == 0u);
     assert(d[enabledKey] == 1u);
+
+    // Paired V4.6 selected Golden evidence shows that empty per-sequence Color
+    // alpha and Transparency groups are opaque (32767), not zero. Exercise an
+    // actual per-sequence outer array so the synthesized default is visible.
+    constexpr std::uint32_t color2 = 32u;
+    constexpr std::uint32_t trans2 = 72u;
+    std::vector<std::uint8_t> defaultsSource(256u, 0u);
+    PutU16(defaultsSource, color2 + 2u, 0xffffu);          // RGB empty
+    PutU16(defaultsSource, color2 + 20u + 2u, 0xffffu);   // alpha non-global
+    PutU32(defaultsSource, color2 + 20u + 4u, 2u); PutU32(defaultsSource, color2 + 20u + 8u, 120u);
+    PutU32(defaultsSource, color2 + 20u + 12u, 2u); PutU32(defaultsSource, color2 + 20u + 16u, 136u);
+    PutU32(defaultsSource, 120u, 0u); PutU32(defaultsSource, 124u, 0u);
+    PutU32(defaultsSource, 128u, 1u); PutU32(defaultsSource, 132u, 200u);
+    PutU32(defaultsSource, 136u, 0u); PutU32(defaultsSource, 140u, 0u);
+    PutU32(defaultsSource, 144u, 1u); PutU32(defaultsSource, 148u, 204u);
+    PutU32(defaultsSource, 200u, 5u);
+    PutU16(defaultsSource, 204u, 12345u);
+
+    PutU16(defaultsSource, trans2 + 2u, 0xffffu);
+    PutU32(defaultsSource, trans2 + 4u, 2u); PutU32(defaultsSource, trans2 + 8u, 152u);
+    PutU32(defaultsSource, trans2 + 12u, 2u); PutU32(defaultsSource, trans2 + 16u, 168u);
+    PutU32(defaultsSource, 152u, 0u); PutU32(defaultsSource, 156u, 0u);
+    PutU32(defaultsSource, 160u, 0u); PutU32(defaultsSource, 164u, 0u);
+    PutU32(defaultsSource, 168u, 0u); PutU32(defaultsSource, 172u, 0u);
+    PutU32(defaultsSource, 176u, 0u); PutU32(defaultsSource, 180u, 0u);
+
+    WotlkM2Sequence sequence2 = sequence;
+    sequence2.animationId = 1u;
+    sequence2.length = 200u;
+    const std::vector<WotlkM2Sequence> twoSequences{sequence, sequence2};
+    const std::vector<ClassicSequenceWindow> twoWindows{{3333u,3433u},{6766u,6966u}};
+    const std::vector<const std::vector<std::uint8_t>*> twoSidecars{nullptr,nullptr};
+    BinaryBuilder defaultsOutput(std::vector<std::uint8_t>(324u, 0u));
+    const auto colorsDefault = ConvertWotlkColors(
+        defaultsOutput, defaultsSource, M2ArrayRef{1u,color2}, twoWindows, twoSequences, twoSidecars);
+    const auto transDefault = ConvertWotlkTransparency(
+        defaultsOutput, defaultsSource, M2ArrayRef{1u,trans2}, twoWindows, twoSequences, twoSidecars);
+    const auto& dd = defaultsOutput.Bytes();
+
+    const std::size_t alphaTrack = static_cast<std::size_t>(colorsDefault.offset) + 28u;
+    assert(GetU32(dd, alphaTrack + 20u) == 4u);
+    const auto alphaKeys = GetU32(dd, alphaTrack + 24u);
+    assert(GetU16(dd, alphaKeys + 0u) == 32767u);
+    assert(GetU16(dd, alphaKeys + 2u) == 32767u);
+    assert(GetU16(dd, alphaKeys + 4u) == 12345u);
+    assert(GetU16(dd, alphaKeys + 6u) == 12345u);
+
+    assert(GetU32(dd, transDefault.offset + 20u) == 4u);
+    const auto transKeys = GetU32(dd, transDefault.offset + 24u);
+    for (std::size_t i = 0u; i < 4u; ++i)
+        assert(GetU16(dd, transKeys + i * 2u) == 32767u);
 
     std::cout << "PASS auxiliary track writers\n";
     return 0;
