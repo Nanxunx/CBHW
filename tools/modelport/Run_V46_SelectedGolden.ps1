@@ -180,7 +180,6 @@ foreach ($Sample in $Selection) {
         $OutDir = Split-Path -Parent $OutM2
         New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-        # Preserve the real source M2 + local skin/anim sidecars used by the converter.
         $SourceCopy = Join-Path $SourceEvidenceRoot $Rel
         $SourceCopyDir = Split-Path -Parent $SourceCopy
         New-Item -ItemType Directory -Force -Path $SourceCopyDir | Out-Null
@@ -199,8 +198,14 @@ foreach ($Sample in $Selection) {
         New-Item -ItemType Directory -Force -Path $GoldenCopyDir | Out-Null
         Copy-Item -LiteralPath $Dst -Destination $GoldenCopy
 
-        & $Converter $Src $AnimationData $OutM2 *> $Log
-        $ExitCode = $LASTEXITCODE
+        $PreviousEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            & $Converter $Src $AnimationData $OutM2 *> $Log
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousEap
+        }
         $LogText = if (Test-Path -LiteralPath $Log) { Get-Content -LiteralPath $Log -Raw } else { "" }
 
         if ($ExitCode -eq 0 -and (Test-Path -LiteralPath $OutM2 -PathType Leaf)) {
