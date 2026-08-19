@@ -16,6 +16,14 @@ namespace turtle335::m2 {
 // matching <Model><AnimID:04>-<SubID:02>.anim sidecar.
 bool SequenceUsesExternalAnimSidecar(const WotlkM2Sequence& sequence) noexcept;
 
+// Alias sequences (flags & 0x40) borrow payload storage from the sequence
+// referenced by Sequence.Index. Resolve the chain before deciding whether a
+// payload lives in the main M2 or in an external .anim sidecar. Cycles and
+// out-of-range references fail closed.
+std::size_t ResolveWotlkPayloadSequenceIndex(
+    const std::vector<WotlkM2Sequence>& sequences,
+    std::size_t sequenceIndex);
+
 std::string BuildWotlkAnimSidecarFilename(
     std::string_view modelStem,
     const WotlkM2Sequence& sequence);
@@ -31,6 +39,8 @@ std::string BuildWotlkAnimSidecarFilename(
 // points to the raw bytes of the .anim belonging to sequences[i]. Outer
 // ArrayRefs and inner count/offset pairs are always read from the main M2;
 // only the payload addressed by an inner offset switches to the sidecar.
+// Offsets inside an external .anim are relative to that sidecar, so offset 0
+// is valid there. Offset 0 remains invalid for non-empty main-M2 payloads.
 WotlkTrackData ParseWotlkTrackWithExternal(
     const std::vector<std::uint8_t>& mainM2,
     std::size_t trackOffset,
