@@ -99,6 +99,41 @@ int main()
     assert(GetU32(d,timeOffset)==0u);
     assert(d[keyOffset]==1u);
 
+    // Selected V4.6 Golden shows that an empty group inside a non-empty
+    // per-sequence enabled track also means enabled=1. Preserve an explicit
+    // disabled key in the second sequence while synthesizing ones for the
+    // first empty sequence.
+    std::vector<std::uint8_t> source2(1024u,0u);
+    const std::size_t enabled=particleOffset+456u;
+    PutU16(source2,enabled+0u,0u);
+    PutU16(source2,enabled+2u,0xffffu);
+    PutU32(source2,enabled+4u,2u); PutU32(source2,enabled+8u,600u);
+    PutU32(source2,enabled+12u,2u); PutU32(source2,enabled+16u,616u);
+    PutU32(source2,600u,0u); PutU32(source2,604u,0u);
+    PutU32(source2,608u,1u); PutU32(source2,612u,700u);
+    PutU32(source2,616u,0u); PutU32(source2,620u,0u);
+    PutU32(source2,624u,1u); PutU32(source2,628u,704u);
+    PutU32(source2,700u,5u);
+    source2[704u]=0u;
+
+    WotlkM2Sequence seq0{}; seq0.length=100u; seq0.flags=0x20u;
+    WotlkM2Sequence seq1{}; seq1.animationId=1u; seq1.length=200u; seq1.flags=0x20u;
+    const std::vector<WotlkM2Sequence> sequences{seq0,seq1};
+    const std::vector<ClassicSequenceWindow> windows2{{3333u,3433u},{6766u,6966u}};
+    const std::vector<const std::vector<std::uint8_t>*> sidecars{nullptr,nullptr};
+    BinaryBuilder output2;
+    const auto result2=ConvertWotlkParticles(
+        output2,source2,M2ArrayRef{1u,particleOffset},windows2,sequences,sidecars);
+    assert(result2.convertedEmitters==1u);
+    const auto& d2=output2.Bytes();
+    const std::size_t enabledClassic=476u;
+    assert(GetU32(d2,enabledClassic+20u)==4u);
+    const auto keys2=GetU32(d2,enabledClassic+24u);
+    assert(d2[keys2+0u]==1u);
+    assert(d2[keys2+1u]==1u);
+    assert(d2[keys2+2u]==0u);
+    assert(d2[keys2+3u]==0u);
+
     std::cout << "PASS particle writer\n";
     return 0;
 }
