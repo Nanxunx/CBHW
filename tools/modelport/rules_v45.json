@@ -1,0 +1,46 @@
+{
+  "checkpoint": "M2_GOLDEN_V45_2026-08-19",
+  "target": "Vanilla 1.12.x / Turtle WoW 1.18.1 standard MD20 v256",
+  "evidence": {
+    "v44_source_m2_total": 18083,
+    "v44_paired_m2": 11596,
+    "v44_deep_pairs": 5036,
+    "v44_animation_lookup_mismatch": 0,
+    "v44_playable_v4_mismatch": 498,
+    "v44_sequence_mismatch": 29,
+    "v44_timeline_mismatch": 27,
+    "selected_playable_v45_models": 29,
+    "selected_playable_v45_records": 6554,
+    "selected_playable_v45_mismatch": 0,
+    "selected_ribbon_models": 13,
+    "selected_ribbon_emitters": 448,
+    "selected_particle_models": 24,
+    "selected_particle_emitters": 930
+  },
+  "sequence": {"index": "preserve source value", "default_timeline_gap_ms": 3333, "special_exception_models_pending": 29, "special_timeline_exception_models_pending": 27},
+  "animation_lookup": {"status": "PRODUCTION_BASELINE", "count": "max(AnimationID)+1", "missing": -1, "duplicate_rule": "prefer first SubAnimationID==0; else first physical occurrence", "v44_high_risk_pass": "5036/5036"},
+  "playable_animation_lookup": {
+    "status": "V45_PROVISIONAL_PENDING_498_RECHECK",
+    "count": 226,
+    "primary_graph": "build12340 AnimationData.dbc raw field index 5",
+    "resolution": "model-aware recursive fallback until a present AnimationID",
+    "golden_overrides": {"121": 14, "146": 0, "172": 16, "174": 16, "181": 19, "191": 159},
+    "fallback_flags": {"play_then_stop_3": [6,97,100,115,123,132,188], "play_backwards_1": [13,45,101,189]},
+    "selected_exact": "29 models / 6554 records"
+  },
+  "ribbon": {"status": "GOLDEN_READY_OFFLINE_SEMANTIC", "source_stride": 176, "target_stride": 220, "validated": "13 models / 448 emitters", "tracks": ["color_vec3","opacity_u16","height_above_f32","height_below_f32","tex_slot_u16","enabled_u8"], "rule": "generic legacy Range/Times/Keys flatten", "drops": ["WotLK trailing ribbon unknown1"]},
+  "particle": {
+    "status": "GOLDEN_READY_OFFLINE_SEMANTIC_WITH_BLOCKER",
+    "source_stride": 476,
+    "target_stride": 504,
+    "validated": "24 models / 930 emitters",
+    "main_float_tracks": 10,
+    "main_float_tracks_exact": "930/930 emitters",
+    "enabled_default": 1,
+    "gradient": {"color_3_keys": "midpoint=time[1]/32767; B,G,R,A; alpha=int16>>7", "non_3_color_keys": "legacy colors zero", "size_3_keys": "target size = source Vec2.X for first three keys", "non_3_size_keys": "legacy sizes zero", "tiles": "[h0,h1,1,h2,h3,1,t0,t1,t2,t3]"},
+    "blocker": "non-zero nUnknownReference/ofsUnknownReference",
+    "explicit_loss_fields": ["source ParticleColorIndex","WotLK unknown1","WotLK unknown2 if non-zero","WotLK scale-vary/unknownfields","WotLK unknown3","WotLK unknown4"]
+  },
+  "external_anim": {"validated_policy": "copy byte-identical when paired Golden confirms sidecar"},
+  "output_policy": {"standard_only": true, "orange_format_forbidden": true, "full_file_m2_integration_pending": true, "real_client_feature_tests_pending": ["Ribbon","Particle","full animated v256 serializer"]}
+}
