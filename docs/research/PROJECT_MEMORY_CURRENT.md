@@ -1,6 +1,6 @@
 # 模型移植项目 — 当前权威记忆
 
-更新时间：2026-08-19（V4.5 C++ Effects + Target Validator / 精确 refinement 阶段）
+更新时间：2026-08-19 19:21 +08:00（V4.6 canonical-226 + whole-M2 assembly 阶段）
 
 权威仓库：
 
@@ -9,165 +9,174 @@ NansenCore/Turtle335Converter
 branch: main
 ```
 
-本文件是“模型移植”项目的当前入口。优先读取：
+本文件是“模型移植”项目的当前入口。后续继续工作时优先读取：
 
 ```text
-docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_1713.md
-docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_V45_EFFECTS.md
-docs/research/M2_GOLDEN_REFERENCE_V45_2026-08-19.md
+docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-19_1921.md
+docs/research/M2_GOLDEN_REFERENCE_V46_REFINE_2026-08-19.md
 docs/research/M2_GOLDEN_REFERENCE_V45_WRITER_CORRECTION_2026-08-19.md
 docs/research/M2_GOLDEN_REFERENCE_V45_RIBBON_2026-08-19.md
-docs/research/M2_CPP_EFFECT_WRITERS_V45_2026-08-19.md
 ```
 
 ## 最终目标
 
-把 WoW 3.3.5a Build12340 的 M2/WMO/地图/BLP/DBC 等资源语义降版成 Vanilla 1.12.x / Turtle WoW 1.18.1 标准资源，并最终自动构建 Patch MPQ。M2 输出只能是标准 `MD20 v256`。
+把 WoW 3.3.5a Build12340 的 M2/WMO/地图/BLP/DBC 等资源语义降版成 Vanilla 1.12.x / Turtle WoW 1.18.1 标准资源，并最终自动构建 Patch MPQ。M2 输出只能是标准 `MD20 v256`，不依赖 Orange/private runtime。
 
-## V4.4 corpus 状态
+## V4.4 / V4.6 corpus 状态
 
 ```text
 source M2                  18083
 paired M2                  11596
 high-risk deep              5036
 deep errors                    0
-Sequence mismatch              29
-Timeline mismatch              27
 AnimationLookup mismatch        0
-Playable old-V4 mismatch      498
-true Ribbon models            268
-Particle models              5570
+old Playable V4 mismatch      498
 ```
+
+V4.5 refinement：
+
+```text
+canonical226 already pass      453
+canonical226 remaining          18
+remaining mismatch records      20
+remaining requested IDs          3
+legacy noncanonical outputs     27
+```
+
+V4.6 新增 Golden overrides：
+
+```text
+28  -> 27
+108 -> 111
+112 -> 111
+```
+
+这三条解释 18/18 remaining canonical models、20/20 records。
+
+27 个旧成功 target 使用非 canonical Playable count：
+
+```text
+203 : 20 models
+1   :  7 models
+```
+
+它们保留为历史兼容证据，但 Turtle335Converter canonical writer **始终生成 226 records**。
 
 ## 当前 M2 基线
 
-- `AnimationLookup`: **PRODUCTION_BASELINE**, 5036/5036 high-risk pass。
+- `AnimationLookup`: **PRODUCTION_BASELINE**。
+- `PlayableAnimationLookup`: **PRODUCTION_BASELINE_V46_CANONICAL_226**。
 - `Sequence.Index`: 保留 source；不能写0，不能用 physical position 替代。
-- `Playable`: **V4.5 provisional**。当前规则为 build12340 AnimationData field5 + Golden overrides + model-aware recursive fallback。
-- `.skin -> embedded View`: Golden-proven。
+- Canonical Sequence：preserve source metadata + `3333` gap timeline。
+- 29 个 Sequence/Timeline 历史 exceptions 中，27 个属于 noncanonical legacy outputs；另 2 个 canonical226 仅 bounds 不同。
+- `.skin -> embedded View`: Golden-proven，C++ `SkinViewWriter` 已加入。
 - ordinary 3D BLP: compatible 时原样复制。
 - external `.anim`: validated cases 原样复制。
-- TextureAnimation: 已有统一 legacy track 路径。
+- Ribbon: C++ writer ready，Golden offline 420 emitters / 2520 tracks。
+- Particle: C++ writer ready，Python V2 oracle 772 selected emitters；`nUnknownReference != 0` 继续 BLOCK。
+- Classic/Turtle v256 strict validator：已存在。
 
-## Playable V4.5
+## Playable V4.6
 
-V4.4 自动选出的8个 `01_RuleMismatch` 成功112 target，当前 `playable_lookup_v45.py` 已做到：
-
-```text
-8 / 8 models PASS
-226 / 226 records per model exact
-```
-
-仍需 `Run_ModelPort_Refine_V45.ps1` 对旧498 paths 精确重验后才能冻结最终 graph。
-
-## Ribbon — Python GOLDEN_OFFLINE_READY / C++ 已接入
-
-Golden：6 paired models / 420 emitters / 2520 tracks；static 420/420，track 2520/2520 PASS；WotLK176B -> Classic/Turtle220B。
-
-Python oracle：
+当前 canonical overrides：
 
 ```text
-tools/modelport/ribbon_converter_v45.py
-tools/modelport/validate_ribbon_golden_v45.py
+28  -> 27
+108 -> 111
+112 -> 111
+121 -> 14
+146 -> 0
+172 -> 16
+174 -> 16
+181 -> 19
+191 -> 159
 ```
 
-C++：
+仍然使用 model-aware recursive fallback；requested ID 自己存在时始终优先自身。
+
+历史 LKBC fallback 只作为交叉参考。其代码明确把 `ID >= 226` 当作非旧动画 ID，并使用递归 fallback；旧转换器还存在清零 SubAnim/Index 的 lossy FIXME，因此不能作为最终字节目标。
+
+## Sequence / Timeline V4.6 结论
+
+29 个 exception target 全部 MD20 v256：
 
 ```text
-include/turtle335/m2/RibbonWriter.h
-src/m2/RibbonWriter.cpp
-tests/test_ribbon_writer.cpp
+Playable226 : 2
+Playable203 : 20
+Playable1   : 7
 ```
 
-已加入 CMake。修正 color 空轨默认 `(1,1,1)`、spline key-size 与必需 includes。隔离 Linux `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror` 编译 + regression PASS；完整 Windows/Actions 仍需继续确认。
+canonical226 两个模型仅 `bounds` 不同，Timeline/Playable 都通过。
 
-## Particle V2 — C++ writer 已接入
+其余27个存在典型旧式 lossy converter 特征：flags/index/timeline/bounds 被改写，少数 duration/playSpeed 改写，甚至存在 source1 sequence -> target9 sequences。
 
-Python oracle：`tools/modelport/particle_v2.py`。
+因此 canonical writer 继续 source-preserving 规则；旧式成功 target 证明客户端能容忍 lossy 变体，但不是我们应该复制的 canonical 输出。
 
-selected Golden：10 pairs / 772 emitters / 8492 versioned tracks；source476B -> target504B。
-
-C++：
-
-```text
-include/turtle335/m2/ParticleWriter.h
-src/m2/ParticleWriter.cpp
-tests/test_particle_writer.cpp
-```
-
-已加入 CMake。覆盖 flags16-bit downgrade、filename relocation、10 float tracks、Fake color/alpha/size、head/tail cells、504B target tail、Rot2 -0 normalization、Trans XY、enabled legacy track。`nUnknownReference != 0` 继续硬性 BLOCK。隔离 Linux strict GCC 编译 + synthetic regression PASS。
-
-Particle target tail：
-
-```text
-332 midpoint
-336 BGRA[3]
-348 size[3]
-360 10 cell shorts
-380 unk Vec3
-392 scales Vec3
-404 slowdown
-408 rotation
-412 unknown4 Vec2 = 0
-420 Rot1 Vec3
-432 Rot2 Vec3
-444 Trans X,Y only
-452 f2[4]
-468 unknown ref pair
-476 enabled track
-504 end
-```
-
-## Classic/Turtle v256 Strict Validator
-
-已新增并接入 CMake：
-
-```text
-include/turtle335/m2/ClassicM2Validator.h
-src/m2/ClassicM2Validator.cpp
-tests/test_classic_m2_validator.cpp
-```
-
-只验证已有 Golden 证据的结构，不猜未知块：MD20/version256、animations68、AnimationLookup、Playable226、bones108、vertices48、embedded View44 + child arrays、textures16、TexAnim84、lookup arrays、Ribbon220、Particle504。
-
-## 当前代码方向
+## 当前 C++ M2 模块
 
 ```text
 WotlkM2Reader
- -> AnimationMetadata / Playable
- -> LegacyTrack
- -> RibbonWriter
- -> ParticleWriter
- -> whole-M2 v256 writer（下一组合阶段）
- -> ClassicM2Validator
- -> minimal Turtle 1.18.1 regression
+AnimationMetadata
+LegacyTrack
+SkinViewWriter
+RibbonWriter
+ParticleWriter
+ClassicM2Validator
 ```
 
-最终用户工具必须输出标准 MD20 v256，不依赖 Orange/private runtime。
+### SkinViewWriter
 
-## 当前唯一需要用户提供的输入
-
-无需再上传普通模型，也不要重新跑全库扫描。请运行：
+本轮新增：
 
 ```text
-tools/modelport/Run_ModelPort_Refine_V45.ps1
+include/turtle335/m2/SkinViewWriter.h
+src/m2/SkinViewWriter.cpp
+tests/test_skin_view_writer.cpp
 ```
 
-它只读取 V4.4 已知失败路径。上传：
+规则：
 
 ```text
-E:\ModelPort_GoldenUpload_V45_Refine\ModelPort_GoldenReference_V45_Refine_ALL.zip
+WotLK SKIN 48B header -> Classic embedded View 44B header
+indices               copy
+triangles             copy
+properties            copy
+48B WotLK submesh     -> first 32B Classic submesh
+24B TextureUnit       copy
+multi-view            supported
+absolute offsets      rewritten
 ```
 
-收到后立即：
+本地 synthetic regression 已用：
 
 ```text
-freeze remaining Playable graph
- -> classify 29/27 Sequence/Timeline exceptions
- -> lock effect writer rules
- -> whole-M2 v264 + skin -> v256 serializer
- -> ClassicM2Validator
- -> 最少量 Turtle 1.18.1 实机 regression
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror
 ```
 
-ADT/WDT/WDL 与 WMO/完整 DBC/MPQ 自动化属于后续统一流水线阶段；当前不能把 M2 进度误称为“所有地图/建筑均完成”。
+编译 + 运行 PASS。CMake 已登记 source/test。
+
+## 下一步（不要再广扫）
+
+直接开发 whole-M2 writer / relocation pipeline：
+
+```text
+WotLK M2 v264 + .skin + AnimationData.dbc
+        ↓
+Classic/Turtle MD20 v256
+        ↓
+Sequence / AnimationLookup / Playable226
+Bones / generic tracks
+Vertices
+Embedded Views
+Colors / Transparency / TexAnim
+Attachments / Events / Lights / Cameras
+Ribbon / Particle
+        ↓
+ClassicM2Validator
+        ↓
+minimal Turtle 1.18.1 real-client regression
+```
+
+当前不需要用户再次提供普通模型或扫描结果。只有在 whole-M2 writer 离线生成通过后，才会要求最少量真实客户端验证样本。
+
+ADT/WDT/WDL 与 WMO/完整 DBC/MPQ 自动化仍属于后续统一流水线阶段，不能把当前 M2 进度误称为“所有地图/建筑均完成”。
