@@ -23,10 +23,10 @@ Write-Host "V44    : $V44Out" -ForegroundColor Cyan
 Write-Host "Out    : $OutRoot" -ForegroundColor Cyan
 Write-Host ""
 
-if (!(Test-Path -LiteralPath $SourceRoot -PathType Container)) { throw "找不到 3.3.5a source root：$SourceRoot" }
-if (!(Test-Path -LiteralPath $TargetRoot -PathType Container)) { throw "找不到历史成功 1.12 target root：$TargetRoot" }
-if (!(Test-Path -LiteralPath $Converter -PathType Leaf)) { throw "找不到 V4.6 whole-M2 converter：$Converter。请先运行 Run_V46_LocalBuildCTest.ps1。" }
-if (!(Test-Path -LiteralPath $Scanner -PathType Leaf)) { throw "找不到 V4.4 targeted selector：$Scanner" }
+if (!(Test-Path -LiteralPath $SourceRoot -PathType Container)) { throw "Missing 3.3.5a source root: $SourceRoot" }
+if (!(Test-Path -LiteralPath $TargetRoot -PathType Container)) { throw "Missing historical successful 1.12 target root: $TargetRoot" }
+if (!(Test-Path -LiteralPath $Converter -PathType Leaf)) { throw "Missing V4.6 whole-M2 converter: $Converter. Run Run_V46_LocalBuildCTest.ps1 first." }
+if (!(Test-Path -LiteralPath $Scanner -PathType Leaf)) { throw "Missing V4.4 targeted selector: $Scanner" }
 
 function Find-Python3 {
     foreach ($Candidate in @("py", "python", "python3")) {
@@ -48,17 +48,17 @@ $Meta = Join-Path $V44Out "STAGING\00_Metadata"
 $HeaderCsv = Join-Path $Meta "V44_HeaderAndRiskIndex.csv"
 $SelectedCsv = Join-Path $Meta "V44_SelectedSamples.csv"
 if (!(Test-Path -LiteralPath $HeaderCsv -PathType Leaf) -or !(Test-Path -LiteralPath $SelectedCsv -PathType Leaf)) {
-    Write-Host "V4.4 selected metadata 不存在，先运行 targeted selector（不是全库深扫）..." -ForegroundColor Yellow
+    Write-Host "V4.4 selected metadata is missing; running the targeted selector (not a full deep scan)..." -ForegroundColor Yellow
     $Python = Find-Python3
-    if ($null -eq $Python) { throw "找不到 Python 3" }
+    if ($null -eq $Python) { throw "Python 3 was not found." }
     if ($Python.Count -eq 2) {
         & $Python[0] $Python[1] $Scanner --source $SourceRoot --target $TargetRoot --out $V44Out --animation-regression-limit 24
     } else {
         & $Python[0] $Scanner --source $SourceRoot --target $TargetRoot --out $V44Out --animation-regression-limit 24
     }
-    if ($LASTEXITCODE -ne 0) { throw "V4.4 targeted selector 失败，退出码：$LASTEXITCODE" }
+    if ($LASTEXITCODE -ne 0) { throw "V4.4 targeted selector failed with exit code $LASTEXITCODE" }
 }
-if (!(Test-Path -LiteralPath $HeaderCsv -PathType Leaf) -or !(Test-Path -LiteralPath $SelectedCsv -PathType Leaf)) { throw "V4.4 targeted selector 未生成预期 metadata CSV" }
+if (!(Test-Path -LiteralPath $HeaderCsv -PathType Leaf) -or !(Test-Path -LiteralPath $SelectedCsv -PathType Leaf)) { throw "V4.4 targeted selector did not produce the expected metadata CSV files." }
 
 if ([string]::IsNullOrWhiteSpace($AnimationData)) {
     foreach ($Candidate in @(
@@ -74,7 +74,7 @@ if ([string]::IsNullOrWhiteSpace($AnimationData)) {
         if ($null -ne $Found) { $AnimationData = $Found.FullName }
     }
 }
-if ([string]::IsNullOrWhiteSpace($AnimationData) -or !(Test-Path -LiteralPath $AnimationData -PathType Leaf)) { throw "找不到 Build12340 AnimationData.dbc。请用 -AnimationData 指定完整路径。" }
+if ([string]::IsNullOrWhiteSpace($AnimationData) -or !(Test-Path -LiteralPath $AnimationData -PathType Leaf)) { throw "Build12340 AnimationData.dbc was not found. Use -AnimationData with the full path." }
 
 Write-Host "AnimationData.dbc: $AnimationData" -ForegroundColor Cyan
 Write-Host "Converter        : $Converter" -ForegroundColor Cyan
@@ -110,7 +110,7 @@ foreach ($Row in $StaticRows) { Add-Sample "00_StaticBaseline" $Row }
 foreach ($Row in $AnimatedRows) { Add-Sample "00_AnimationBaseline" $Row }
 foreach ($Row in $SelectedRows) { Add-Sample ([string]$Row.Category) $Row }
 $Selection = $script:Selection
-if ($Selection.Count -eq 0) { throw "没有找到可用于 V4.6 Golden regression 的 selected samples" }
+if ($Selection.Count -eq 0) { throw "No selected samples were found for V4.6 Golden regression." }
 
 $Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $Evidence = Join-Path $OutRoot ("V46_SelectedGolden_" + $Stamp)
@@ -215,4 +215,4 @@ Write-Host "Light gated: $($Summary.light_reference_gated)" -ForegroundColor Cya
 Write-Host "Converter fail: $($Summary.converter_fail)" -ForegroundColor Cyan
 Write-Host "Errors: $($Summary.errors)" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "下一步：把这个 ZIP 上传到 ChatGPT，直接做 generated canonical v256 vs historical successful 1.12 semantic Golden comparison。" -ForegroundColor Green
+Write-Host "Next: upload the ZIP to ChatGPT for generated canonical v256 vs historical successful 1.12 semantic Golden comparison." -ForegroundColor Green
