@@ -1,6 +1,5 @@
 name: Turtle335Converter CI
 
-
 on:
 
   push:
@@ -29,7 +28,6 @@ jobs:
     runs-on: windows-2022
 
 
-
     strategy:
 
       matrix:
@@ -37,7 +35,6 @@ jobs:
         configuration:
 
           - Debug
-
           - Release
 
 
@@ -45,77 +42,65 @@ jobs:
     steps:
 
 
+      - name: Checkout source
 
-    - name: Checkout source
-
-      uses: actions/checkout@v4
-
+        uses: actions/checkout@v4
 
 
 
+      - name: Cache CMake
 
-    - name: Cache CMake
+        uses: actions/cache@v4
 
-      uses: actions/cache@v4
+        with:
 
-      with:
-
-        path: |
-
-          build-ci
-
-        key: windows-cmake-${{ matrix.configuration }}-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
-
-        restore-keys: |
-
-          windows-cmake-${{ matrix.configuration }}-
+          path: |
+            build-ci
 
 
+          key: windows-cmake-${{ matrix.configuration }}-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
+
+
+          restore-keys: |
+
+            windows-cmake-${{ matrix.configuration }}-
 
 
 
-    - name: Configure CMake
+      - name: Configure CMake
 
-      run: |
+        run: |
 
-        cmake -S . -B build-ci
-
-
+          cmake -S . -B build-ci
 
 
 
-    - name: Build
+      - name: Build
 
-      run: |
+        run: |
 
-        cmake --build build-ci --config ${{ matrix.configuration }}
-
-
+          cmake --build build-ci --config ${{ matrix.configuration }}
 
 
 
+      - name: Run Tests
 
+        run: |
 
-    - name: Run Tests
-
-      run: |
-
-        ctest --test-dir build-ci -C ${{ matrix.configuration }} --output-on-failure
-
+          ctest --test-dir build-ci -C ${{ matrix.configuration }} --output-on-failure
 
 
 
+      - name: Upload Test Results
 
-    - name: Upload Test Results
+        if: always()
 
-      if: always()
+        uses: actions/upload-artifact@v4
 
-      uses: actions/upload-artifact@v4
+        with:
 
-      with:
+          name: test-results-${{ matrix.configuration }}
 
-        name: test-results-${{ matrix.configuration }}
+          path: |
 
-        path: |
-
-          build-ci/Testing
+            build-ci/Testing
