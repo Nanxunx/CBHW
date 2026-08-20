@@ -1,0 +1,41 @@
+{
+  "checkpoint": "Golden_V4.1_scan_recovery",
+  "date": "2026-08-19",
+  "third_batch_original": {
+    "source_m2_total": 18083,
+    "paired": 11597,
+    "scan_errors": 11597,
+    "valid_for_global_conclusions": false,
+    "reason": "every paired M2 hit SCAN_ERROR; zero mismatch/feature counts are artifacts"
+  },
+  "manual_revalidation": {
+    "third_batch_false_positive_pairs": 6,
+    "scan_errors": 0,
+    "sequence_exact": 6,
+    "animation_lookup_exact": 6,
+    "playable_exact": 6
+  },
+  "scanner_v41": {
+    "engine": "Python struct parser with bounds checking",
+    "preflight_abort": true,
+    "error_message_column": true,
+    "separate_dbc_sides": true
+  },
+  "regression": {
+    "second_batch_pairs": 13,
+    "scan_errors": 0,
+    "sequence_mismatch": 0,
+    "timeline_mismatch": 0,
+    "animation_lookup_mismatch": 0,
+    "playable_mismatch": 0,
+    "particle_models": 7,
+    "texanim_models": 3,
+    "external_anim_models": 2,
+    "alias_models": 3,
+    "subanimation_models": 2,
+    "ribbon_models": 0
+  },
+  "production_gate": {
+    "playable_v4_full_library": "BLOCKED_UNTIL_V41_SCAN_ERRORS_ZERO"
+  }
+}

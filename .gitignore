@@ -1,0 +1,40 @@
+# CMake / build output
+build/
+build-*/
+out/
+bin/
+obj/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.user
+
+# Generated validation / evidence
+validation/
+validation-*/
+*.bundle
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs / temporary
+*.log
+*.tmp
+*.bak
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

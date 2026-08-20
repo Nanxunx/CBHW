@@ -1,0 +1,59 @@
+{
+  "checkpoint": "SecondBatch_GoldenReference_V4",
+  "target": {
+    "magic": "MD20",
+    "version": 256,
+    "playable_count": 226
+  },
+  "sequence": {
+    "index_rule": "preserve_source",
+    "timeline_gap_ms": 3333
+  },
+  "animation_lookup": {
+    "count_rule": "max(AnimationID)+1",
+    "missing": 65535,
+    "duplicate_rule": "prefer SubAnimationID==0, else first physical occurrence"
+  },
+  "playable": {
+    "source": "Golden-validated 226-era fallback graph",
+    "do_not_derive_directly_from_build12340_AnimationData_field5": true,
+    "golden_extensions": {
+      "170": 16,
+      "171": 16,
+      "172": 16,
+      "173": 16,
+      "174": 16,
+      "175": 30,
+      "176": 16,
+      "178": 16,
+      "179": 16,
+      "181": 16,
+      "191": 159
+    },
+    "second_batch_exact": "13/13 targets x 226 records"
+  },
+  "external_anim": {
+    "validated_policy": "copy byte-identical",
+    "validated_pairs": 2
+  },
+  "embedded_view": {
+    "validated_views": 17,
+    "result": "17/17 exact payload semantics"
+  },
+  "blp": {
+    "ordinary_3d_matched_pairs": 39,
+    "sha256_exact": "39/39",
+    "ui_icon": "separate cursor-safe path"
+  },
+  "particle": {
+    "source_stride": 476,
+    "target_stride": 504,
+    "validated_emitters": 50,
+    "target_flags": "source_flags & 0xFFFF",
+    "full_writer_status": "not_batch_ready"
+  },
+  "ribbon": {
+    "golden_status": "not_yet_validated",
+    "next_selection_rule": "scan header nRibbonEmitters>0"
+  }
+}
