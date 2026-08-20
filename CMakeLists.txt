@@ -1,3 +1,4 @@
+
 cmake_minimum_required(VERSION 3.16)
 project(Turtle335ConverterCore LANGUAGES CXX)
 
@@ -41,6 +42,7 @@ add_library(turtle335_core
     src/m2/SkinViewWriter.cpp
     src/m2/ClassicM2Validator.cpp
     src/m2/ClassicM2Writer.cpp
+    src/m2/effect/EffectValidator.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -167,6 +169,9 @@ target_link_libraries(turtle335_classic_m2_validator_tests PRIVATE turtle335_cor
 add_executable(turtle335_classic_m2_writer_tests tests/test_classic_m2_writer.cpp)
 target_link_libraries(turtle335_classic_m2_writer_tests PRIVATE turtle335_core)
 
+add_executable(turtle335_effect_validator_tests tests/m2/effect/EffectValidatorTests.cpp)
+target_link_libraries(turtle335_effect_validator_tests PRIVATE turtle335_core)
+
 enable_testing()
 add_test(NAME turtle335_core_tests COMMAND turtle335_core_tests)
 add_test(NAME turtle335_mcnk_tests COMMAND turtle335_mcnk_tests)
@@ -194,6 +199,7 @@ add_test(NAME turtle335_event_writer_tests COMMAND turtle335_event_writer_tests)
 add_test(NAME turtle335_light_writer_tests COMMAND turtle335_light_writer_tests)
 add_test(NAME turtle335_classic_m2_header_tests COMMAND turtle335_classic_m2_header_tests)
 add_test(NAME turtle335_ribbon_writer_tests COMMAND turtle335_ribbon_writer_tests)
+add_test(NAME turtle335_effect_validator_tests COMMAND turtle335_effect_validator_tests)
 add_test(NAME turtle335_particle_writer_tests COMMAND turtle335_particle_writer_tests)
 add_test(NAME turtle335_skin_view_writer_tests COMMAND turtle335_skin_view_writer_tests)
 add_test(NAME turtle335_classic_m2_validator_tests COMMAND turtle335_classic_m2_validator_tests)
