@@ -1,0 +1,45 @@
+name: Turtle335Converter CI
+
+
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+
+  build-windows:
+
+
+    runs-on: windows-2022
+
+
+    steps:
+
+
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+
+
+    - name: Configure CMake
+      run: |
+        cmake -S . -B build-ci
+
+
+
+    - name: Build Debug
+      run: |
+        cmake --build build-ci --config Debug
+
+
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build-ci -C Debug --output-on-failure
