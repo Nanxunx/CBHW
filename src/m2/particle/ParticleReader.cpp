@@ -1,45 +1,116 @@
 #include "turtle335/m2/particle/ParticleReader.h"
 
+#include <stdexcept>
+
 
 namespace turtle335
 {
 
 
-std::vector<ParticleEmitterInfo>
-ParticleReader::Read(
+namespace
+{
+
+
+constexpr std::uint32_t kParticleStride = 476;
+
+
+std::uint32_t ReadU32(
+    const std::vector<std::uint8_t>& data,
+    std::uint32_t offset
+)
+{
+    if(offset + 4 > data.size())
+    {
+        throw std::runtime_error(
+            "Particle uint32 read overflow"
+        );
+    }
+
+
+    return
+        static_cast<std::uint32_t>(data[offset]) |
+        (static_cast<std::uint32_t>(data[offset + 1]) << 8) |
+        (static_cast<std::uint32_t>(data[offset + 2]) << 16) |
+        (static_cast<std::uint32_t>(data[offset + 3]) << 24);
+}
+
+
+}
+
+
+
+ParticleSystem ParticleReader::Read(
+    const std::vector<std::uint8_t>& data,
     std::uint32_t offset,
     std::uint32_t count
 )
 {
-    std::vector<ParticleEmitterInfo> result;
+    ParticleSystem system;
 
 
-    constexpr std::uint32_t kParticleStride = 476;
+    system.count = count;
 
 
     for(std::uint32_t i = 0;
         i < count;
         ++i)
     {
-        ParticleEmitterInfo info;
-
-
-        info.index = i;
-
-
-        info.offset =
+        auto emitterOffset =
             offset + i * kParticleStride;
 
 
-        info.size =
-            kParticleStride;
-
-
-        result.push_back(info);
+        system.emitters.push_back(
+            ReadEmitter(
+                data,
+                emitterOffset,
+                i
+            )
+        );
     }
 
 
-    return result;
+    return system;
+}
+
+
+
+ParticleEmitter ParticleReader::ReadEmitter(
+    const std::vector<std::uint8_t>& data,
+    std::uint32_t offset,
+    std::uint32_t index
+)
+{
+    if(offset + kParticleStride > data.size())
+    {
+        throw std::runtime_error(
+            "Particle emitter outside file"
+        );
+    }
+
+
+    ParticleEmitter emitter;
+
+
+    emitter.index = index;
+
+    emitter.offset = offset;
+
+
+    emitter.flags =
+        ReadU32(
+            data,
+            offset
+        );
+
+
+    emitter.textureId =
+        ReadU32(
+            data,
+            offset + 32
+        );
+
+
+    return emitter;
 }
 
 
