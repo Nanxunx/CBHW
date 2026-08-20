@@ -1,52 +1,121 @@
 name: Turtle335Converter CI
 
+
 on:
+
   push:
+
     branches:
       - main
       - feature/*
 
+
   pull_request:
+
     branches:
       - main
 
 
+
 jobs:
+
 
   build-windows:
 
+
     name: Windows MSVC Build
+
 
     runs-on: windows-2022
 
 
+
+    strategy:
+
+      matrix:
+
+        configuration:
+
+          - Debug
+
+          - Release
+
+
+
     steps:
 
+
+
     - name: Checkout source
+
       uses: actions/checkout@v4
 
 
-    - name: Cache CMake build
+
+
+
+    - name: Cache CMake
+
       uses: actions/cache@v4
+
       with:
+
         path: |
+
           build-ci
-          ~/.cache
-        key: windows-cmake-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
+
+        key: windows-cmake-${{ matrix.configuration }}-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
+
         restore-keys: |
-          windows-cmake-
+
+          windows-cmake-${{ matrix.configuration }}-
+
+
+
 
 
     - name: Configure CMake
+
       run: |
+
         cmake -S . -B build-ci
 
 
-    - name: Build Debug
+
+
+
+    - name: Build
+
       run: |
-        cmake --build build-ci --config Debug
+
+        cmake --build build-ci --config ${{ matrix.configuration }}
+
+
+
+
+
 
 
     - name: Run Tests
+
       run: |
-        ctest --test-dir build-ci -C Debug --output-on-failure
+
+        ctest --test-dir build-ci -C ${{ matrix.configuration }} --output-on-failure
+
+
+
+
+
+    - name: Upload Test Results
+
+      if: always()
+
+      uses: actions/upload-artifact@v4
+
+      with:
+
+        name: test-results-${{ matrix.configuration }}
+
+        path: |
+
+          build-ci/Testing
