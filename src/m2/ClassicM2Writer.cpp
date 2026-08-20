@@ -42,14 +42,6 @@ void PutU16(std::vector<std::uint8_t>& d, const std::size_t o, const std::uint16
     d[o + 1u] = static_cast<std::uint8_t>((v >> 8u) & 0xffu);
 }
 
-void PutU32(std::vector<std::uint8_t>& d, const std::size_t o, const std::uint32_t v)
-{
-    d[o] = static_cast<std::uint8_t>(v & 0xffu);
-    d[o + 1u] = static_cast<std::uint8_t>((v >> 8u) & 0xffu);
-    d[o + 2u] = static_cast<std::uint8_t>((v >> 16u) & 0xffu);
-    d[o + 3u] = static_cast<std::uint8_t>((v >> 24u) & 0xffu);
-}
-
 void PutU32(std::uint8_t* d, const std::size_t o, const std::uint32_t v)
 {
     d[o] = static_cast<std::uint8_t>(v & 0xffu);
