@@ -44,6 +44,7 @@ add_library(turtle335_core
     src/m2/ClassicM2Writer.cpp
     src/m2/effect/EffectValidator.cpp
     src/m2/particle/ParticleValidator.cpp
+	src/m2/particle/ParticleProbe.cpp
 )
 
 target_include_directories(turtle335_core PUBLIC include)
@@ -175,6 +176,22 @@ target_link_libraries(turtle335_effect_validator_tests PRIVATE turtle335_core)
 
 add_executable(turtle335_particle_validator_tests
     tests/m2/particle/ParticleValidatorTests.cpp
+)
+
+add_executable(turtle335_particle_probe_tests
+    tests/m2/particle/ParticleProbeTests.cpp
+)
+
+
+target_link_libraries(
+    turtle335_particle_probe_tests
+    turtle335_core
+)
+
+
+add_test(
+    NAME turtle335_particle_probe_tests
+    COMMAND turtle335_particle_probe_tests
 )
 
 target_link_libraries(
