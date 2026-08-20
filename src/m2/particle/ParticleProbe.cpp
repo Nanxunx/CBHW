@@ -5,20 +5,47 @@ namespace turtle335
 {
 
 
-ParticleProbeData ParticleProbe::Inspect()
+ParticleProbeReport ParticleProbe::Inspect(
+    const m2::WotlkM2Document& model
+)
 {
-    ParticleProbeData data;
+    ParticleProbeReport report;
 
 
-    /*
-        V47.1 Probe skeleton.
-
-        Later this will receive
-        normalized M2 particle data.
-    */
+    report.emitterCount =
+        model.particles.count;
 
 
-    return data;
+    constexpr std::uint32_t kParticleStride = 476;
+
+
+    for(std::uint32_t i = 0;
+        i < model.particles.count;
+        ++i)
+    {
+        ParticleProbeRecord record;
+
+
+        record.index = i;
+
+
+        record.size =
+            kParticleStride;
+
+
+        if(model.particles.offset)
+        {
+            record.offset =
+                model.particles.offset +
+                i * kParticleStride;
+        }
+
+
+        report.emitters.push_back(record);
+    }
+
+
+    return report;
 }
 
 
