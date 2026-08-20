@@ -1,2 +1,35 @@
 build-v46/
 validation-v46/
+
+# Generated build
+build*/
+out/
+cmake-build-*/
+
+# Validation output
+validation*/
+golden/
+reports/
+
+# Warcraft binary resources
+*.mpq
+*.m2
+*.skin
+*.blp
+*.dbc
+*.db2
+*.wdt
+*.adt
+*.wmo
+*.wdl
+
+# Client extracted data
+Data/
+data/
+Interface/
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+
