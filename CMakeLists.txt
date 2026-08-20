@@ -1,4 +1,4 @@
-
+﻿
 cmake_minimum_required(VERSION 3.16)
 project(Turtle335ConverterCore LANGUAGES CXX)
 
@@ -45,7 +45,9 @@ add_library(turtle335_core
     src/m2/effect/EffectValidator.cpp
     src/m2/particle/ParticleValidator.cpp
 	src/m2/particle/ParticleProbe.cpp
+	src/m2/particle/ParticleReader.cpp
 )
+
 
 target_include_directories(turtle335_core PUBLIC include)
 
@@ -192,6 +194,22 @@ target_link_libraries(
 add_test(
     NAME turtle335_particle_probe_tests
     COMMAND turtle335_particle_probe_tests
+)
+
+add_executable(turtle335_particle_reader_tests
+    tests/m2/particle/ParticleReaderTests.cpp
+)
+
+
+target_link_libraries(
+    turtle335_particle_reader_tests
+    turtle335_core
+)
+
+
+add_test(
+    NAME turtle335_particle_reader_tests
+    COMMAND turtle335_particle_reader_tests
 )
 
 target_link_libraries(
