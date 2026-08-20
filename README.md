@@ -1,6 +1,6 @@
 # Turtle335Converter
 
-Convert WoW 3.3.5a assets to Vanilla 1.12.x / Turtle WoW 1.18.1 compatible resources.
+Convert World of Warcraft 3.3.5a assets into resources compatible with Vanilla 1.12.x/ Turtle WoW 1.18.1.
 
 ## Current implementation status
 
