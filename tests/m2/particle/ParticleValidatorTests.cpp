@@ -3,16 +3,61 @@
 #include <cassert>
 
 
+using namespace turtle335;
+
+
+
 int main()
 {
 
-    turtle335::ParticleValidator validator;
+    ParticleSystem system;
 
 
-    auto result = validator.Validate();
+    system.count = 1;
 
 
-    assert(result.empty());
+    ParticleEmitter emitter;
+
+    emitter.index = 0;
+
+    emitter.offset = 0;
+
+    emitter.textureId = 1;
+
+
+    system.emitters.push_back(
+        emitter
+    );
+
+
+
+    ParticleValidator validator;
+
+
+    auto result =
+        validator.Validate(
+            system
+        );
+
+
+    assert(
+        result.empty()
+    );
+
+
+
+    system.count = 2;
+
+
+    result =
+        validator.Validate(
+            system
+        );
+
+
+    assert(
+        !result.empty()
+    );
 
 
     return 0;

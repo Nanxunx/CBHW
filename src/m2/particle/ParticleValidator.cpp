@@ -1,25 +1,35 @@
 #include "turtle335/m2/particle/ParticleValidator.h"
 
 
+
 namespace turtle335
 {
 
 
 std::vector<ValidationIssue>
-ParticleValidator::Validate()
+ParticleValidator::Validate(
+    const ParticleSystem& system
+)
 {
     std::vector<ValidationIssue> issues;
 
 
-    ValidateEmitter(issues);
+    ValidateEmitter(
+        system,
+        issues
+    );
 
-    ValidateTexture(issues);
 
-    ValidateAlpha(issues);
+    ValidateTexture(
+        system,
+        issues
+    );
 
-    ValidateBlendMode(issues);
 
-    ValidateAnimation(issues);
+    ValidateOffset(
+        system,
+        issues
+    );
 
 
     return issues;
@@ -27,43 +37,79 @@ ParticleValidator::Validate()
 
 
 
+
 void ParticleValidator::ValidateEmitter(
-    std::vector<ValidationIssue>& issues)
+    const ParticleSystem& system,
+    std::vector<ValidationIssue>& issues
+)
 {
-    (void)issues;
+
+    if(system.count != system.emitters.size())
+    {
+        issues.push_back(
+        {
+            "PARTICLE_COUNT_MISMATCH",
+            "ERROR",
+            "Particle emitter count mismatch"
+        });
+    }
+
 }
+
 
 
 
 void ParticleValidator::ValidateTexture(
-    std::vector<ValidationIssue>& issues)
+    const ParticleSystem& system,
+    std::vector<ValidationIssue>& issues
+)
 {
-    (void)issues;
+
+    for(const auto& emitter : system.emitters)
+    {
+
+        if(emitter.textureId == 0)
+        {
+
+            issues.push_back(
+            {
+                "MISSING_TEXTURE",
+                "WARNING",
+                "Particle texture is missing"
+            });
+
+        }
+
+    }
+
 }
 
 
 
-void ParticleValidator::ValidateAlpha(
-    std::vector<ValidationIssue>& issues)
+
+
+void ParticleValidator::ValidateOffset(
+    const ParticleSystem& system,
+    std::vector<ValidationIssue>& issues
+)
 {
-    (void)issues;
+
+    for(const auto& emitter : system.emitters)
+    {
+
+        if(emitter.offset % 476 != 0)
+        {
+
+            issues.push_back(
+            {
+                "INVALID_PARTICLE_OFFSET",
+                "ERROR",
+                "Particle emitter offset is not aligned"
+            });
+
+        }
+
+    }
+
 }
-
-
-
-void ParticleValidator::ValidateBlendMode(
-    std::vector<ValidationIssue>& issues)
-{
-    (void)issues;
-}
-
-
-
-void ParticleValidator::ValidateAnimation(
-    std::vector<ValidationIssue>& issues)
-{
-    (void)issues;
-}
-
-
 }
