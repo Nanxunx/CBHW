@@ -1,7 +1,9 @@
 # Turtle335Converter
 
 Convert World of Warcraft 3.3.5a assets into resources compatible with Vanilla 1.12.x/ Turtle WoW 1.18.1.
-![Uploading 5af862701a7c8199cbae696660270992.png…]()
+
+<img width="2848" height="1434" alt="5af862701a7c8199cbae696660270992" src="https://github.com/user-attachments/assets/e3a26449-a319-4084-9228-dfa796ab0a6f" />
+
 
 ## Current implementation status
 
