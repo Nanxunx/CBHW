@@ -1,194 +1,552 @@
 # Turtle335Converter
 
-Convert WoW 3.3.5a assets to Vanilla 1.12.x / Turtle WoW 1.18.1 compatible resources.
 
-## Current implementation status
+Convert World of Warcraft **3.3.5a build12340** assets into **Vanilla 1.12.x / Turtle WoW compatible resources**.
 
-The ADT branch now has a guarded source-to-target pipeline:
 
-```text
-WoW 3.3.5a build12340 ADT
-  + LiquidType.dbc
-  + optional source WDT
-        |
-        v
-WotLK structural readers
-        |
-        v
-semantic normalization
-        |
-        v
-Vanilla/Turtle ADT writer
-        |
-        v
-self validator
-```
+The project focuses on cross-version asset conversion:
 
-Implemented ADT areas currently include:
 
-- MVER / MHDR / MCIN / 256 MCNK root reconstruction
-- MTEX, MMDX/MMID, MWMO/MWID, MDDF/MODF and MCRF
-- MCVT / MCNR / MCLY terrain normalization
-- old 4-bit, big 8-bit and RLE MCAL input normalization
-- MH2O -> category-grouped legacy MCLQ
-- legacy MCLQ owning-size handling (`QLCM` inner size may be zero; `MCNK.sizeMCLQ` owns the real block size)
-- MCSH 64x64 shadow edge normalization
-- WotLK WDT source parsing for MAIN presence and the MPHD big-alpha hint
-- strict build12340 `LiquidType.dbc` WDBC parsing for liquid category resolution
-- source-only single-ADT and batch map probes
-- heap-backed 256-cell normalized/writer storage to avoid Windows default-stack failures
+- ADT terrain conversion
+- M2 model conversion
+- WMO conversion
+- Particle system conversion
+- Binary structure validation
+- Semantic compatibility checking
 
-The converter deliberately reports unsupported source semantics as `LOSS` or `BLOCKER` rather than silently copying bytes across versions.
 
-### Source-only single ADT probe
+The goal is not simple binary copying, but a validated conversion pipeline between different WoW client generations.
 
-```text
-turtle335_probe_adt <source.adt> [--wdt <source.wdt>]
-```
 
-This does not require `LiquidType.dbc` and does not write target data. It inventories MCAL encoding, MH2O liquid IDs, MCSH/MCCV/MCSE/MFBO, holes, placement-reference risks and other source semantics.
+---
 
-Exit intent:
 
-```text
-0 = clean
-2 = blocker exists
-3 = risk/loss exists without blocker
-```
+# Project Status
 
-### Batch map probe
 
-```text
-turtle335_probe_map <adt-directory> [--recursive] [--wdt <source.wdt>] [--details]
-```
+## Current Development
 
-The batch probe scans all `.adt` files in a directory, classifies each tile as clean/risk/blocker/parse-failure, aggregates issue codes and MH2O LiquidType IDs, and surfaces clean candidates for the first real conversion fixture. `--details` expands per-tile output.
 
-Exit intent remains:
+### V4.7 Particle Pipeline
 
-```text
-0 = all scanned tiles clean
-2 = at least one blocker or parse failure
-3 = no blocker, but at least one risk/loss
-```
 
-### Full semantic scan without writing
+Completed:
 
-```text
-turtle335_convert_adt \
-  <source.adt> \
-  <LiquidType.dbc> \
-  --wdt <source.wdt> \
-  --scan-only
-```
 
-Exit intent:
+- ✅ ParticleProbe
+- ✅ ParticleReader
+- ✅ ParticleData model
+- ✅ ParticleValidator
+- ✅ GitHub Actions CI integration
 
-```text
-0 = scan is representable without reported loss
-2 = blocker exists
-3 = representable, but conversion is lossy
-```
 
-### Convert
 
-```text
-turtle335_convert_adt \
-  <source.adt> \
-  <LiquidType.dbc> \
-  <output.adt> \
-  --wdt <source.wdt>
-```
 
-Lossy output is refused by default. After reviewing every reported loss:
+Current next steps:
 
-```text
---allow-lossy
-```
 
-can be supplied explicitly.
+- ParticleWriter
+- Classic M2 writer integration
+- Particle round-trip validation
 
-## Verification status
 
-Current ADT/probe main code is cross-platform CI verified.
 
-Latest batch-probe validation:
 
-```text
-workflow: core-tests
-run id: 32095952833
-run number: 104
-validated main code SHA: 771cf518d4a49bf88c07ef752721f918a65eb14d
-```
+---
 
-Results:
 
-```text
-Ubuntu: Configure PASS / Build PASS / CTest PASS (16/16)
-Windows: Configure PASS / Build PASS / CTest PASS (16/16)
-```
+# Build Status
 
-The remaining P0 gate is not compilation: it is a real unmodified WoW 3.3.5a build12340 ADT/WDT fixture and Turtle client runtime validation.
 
-## V4.6 whole-M2 validation
+## Supported Environment
 
-The V4.6 whole-M2 branch has completed a real Windows VS2022 x64 Debug build and complete local CTest run:
 
-```text
-30/30 tests passed
-```
+- Windows 10 / Windows 11
+- Visual Studio 2022
+- MSVC v143
+- CMake
 
-The current M2 gate is selected real-model whole-output Golden regression, not compilation.
 
-Update the checkout and run from the repository root:
+
+
+## Continuous Integration
+
+
+GitHub Actions automatically verifies:
+
+
+- Windows MSVC build
+- Debug configuration
+- Release configuration
+- Automated CTest validation
+
+
+
+
+Local validation:
+
 
 ```powershell
-git pull
-powershell -ExecutionPolicy Bypass -File .\tools\modelport\Run_V46_SelectedGolden.ps1
-```
+cmake -S . -B build-v46
 
-Default paired corpus roots:
 
-```text
-E:\335_FinalExtract_V5
-E:\335to112_Converted_FinalExtract_V1
-```
+cmake --build build-v46 --config Debug
 
-The runner reuses the V4.4 targeted selector when needed, adds small static and ordinary-animation baselines, runs the validated `turtle335_convert_m2.exe`, and packages source M2/skin/anim sidecars, generated canonical v256 output, historical successful 1.12 targets, logs and hashes for semantic comparison. Native conversion failures are recorded per sample rather than aborting the evidence run; Light-bearing models remain reference-gated.
 
-Latest detailed checkpoint: `docs/research/PROJECT_MEMORY_CHECKPOINT_2026-08-20_0335.md`.
+ctest --test-dir build-v46 -C Debug --output-on-failure
+Architecture Overview
+WoW 3.3.5a build12340 assets
 
-## Research checkpoint
 
-The reverse-engineering and conversion design is documented under `docs/research/`:
-
-- [Current Project Memory](docs/research/PROJECT_MEMORY_CURRENT.md) — authoritative baseline; prefer this when older research notes conflict.
-- `PROJECT_MEMORY_CHECKPOINT_2026-08-18_1358.md` — newest delta after batch-probe/CI work; takes precedence for the items it updates.
-- [Research Checkpoint](docs/research/RESEARCH_CHECKPOINT.md) — project-wide historical conclusions, evidence levels and architecture.
-- [M2 Retroport Spec](docs/research/M2_RETROPORT_SPEC.md) — MD20/M2 structure conversion, skins, animations, particles and validation.
-- [WMO Retroport Spec](docs/research/WMO_RETROPORT_SPEC.md) — root/group WMO conversion, MOMT, MOPY, second UV/color sets and MLIQ.
-- [ADT Retroport Spec](docs/research/ADT_RETROPORT_SPEC.md) — ADT/MCNK conversion, MH2O -> MCLQ, resource tables and placements.
-- [ADT Implementation Checkpoint](docs/research/ADT_IMPLEMENTATION_CHECKPOINT_2026-08-18.md) — current executable ADT pipeline, limitations and next fixture-validation step.
-
-## Target pipeline
-
-```text
-WoW 3.3.5a assets
         |
         v
+
+
 Turtle335Converter
-        |
-        v
-Vanilla/Turtle-compatible M2 / WMO / ADT / BLP
-        |
-        v
-Tortoise extractor
-        |
-        v
-maps / vmaps / mmaps
-        |
-        v
-Turtle WoW 1.18.1
-```
 
-The target client loader and target Tortoise extractor are treated as the final compatibility authority. Community documentation is used as supporting evidence, not as a substitute for loader-level verification.
+
+        |
+        +----------------+
+        |                |
+        v                v
+
+
+ADT Pipeline        M2 Pipeline
+
+
+        |                |
+
+
+        v                v
+
+
+Vanilla/Turtle compatible output
+
+
+
+The converter uses:
+
+binary readers
+normalized intermediate structures
+validators
+writers
+regression tests
+ADT Conversion Pipeline
+
+Current ADT pipeline:
+
+WoW 3.3.5a ADT
+    |
+    + LiquidType.dbc
+    + optional WDT
+          |
+          v
+
+
+WotLK structural readers
+
+
+          |
+          v
+
+
+Semantic normalization
+
+
+          |
+          v
+
+
+Vanilla/Turtle ADT writer
+
+
+          |
+          v
+
+
+Self validation
+
+
+
+Implemented ADT areas:
+
+MVER / MHDR / MCIN / MCNK reconstruction
+MTEX
+MMDX / MMID
+MWMO / MWID
+MDDF / MODF
+MCRF
+MCVT terrain normalization
+MCNR normal conversion
+MCLY layer conversion
+MCAL alpha normalization
+MH2O to legacy MCLQ conversion
+MCSH shadow normalization
+WotLK WDT parsing
+LiquidType.dbc resolution
+
+The converter intentionally reports unsupported semantics as:
+
+LOSS
+BLOCKER
+RISK
+
+instead of silently copying incompatible binary data.
+
+ADT Tools
+Single ADT Probe
+turtle335_probe_adt <source.adt> [--wdt <source.wdt>]
+
+The probe analyzes:
+
+MCAL encoding
+MH2O liquid information
+MCSH
+MCCV
+MCSE
+holes
+placement risks
+
+Exit codes:
+
+0 = clean
+
+
+2 = blocker exists
+
+
+3 = risk/loss exists
+Batch Map Probe
+turtle335_probe_map <adt-directory> [--recursive]
+
+Features:
+
+scans multiple ADT files
+aggregates issue codes
+detects conversion risks
+identifies clean candidates
+M2 Conversion Pipeline
+
+Current M2 development:
+
+WotLK M2
+
+
+    |
+
+
+    v
+
+
+Reader
+
+
+    |
+
+
+    v
+
+
+Normalized Data
+
+
+    |
+
+
+    v
+
+
+Validator
+
+
+    |
+
+
+    v
+
+
+Writer
+
+
+    |
+
+
+    v
+
+
+Classic M2 Output
+
+
+
+V4.6 milestone:
+
+Completed:
+
+whole M2 validation framework
+writer validation framework
+animation related checks
+ribbon/effect validation
+golden reference workflow
+
+Current gate:
+
+Real model regression testing.
+
+Compilation is no longer the primary limitation.
+
+Particle System
+
+Particle conversion is being developed as part of the M2 pipeline.
+
+Current modules:
+
+include/turtle335/m2/particle/
+
+
+    ParticleProbe.h
+    ParticleReader.h
+    ParticleData.h
+    ParticleValidator.h
+
+
+
+
+src/m2/particle/
+
+
+    ParticleProbe.cpp
+    ParticleReader.cpp
+    ParticleValidator.cpp
+
+
+
+
+tests/m2/particle/
+
+
+    Particle tests
+
+Design goals:
+
+preserve particle emitter structure
+validate binary offsets
+detect invalid references
+support future writer implementation
+Verification
+
+Current verification includes:
+
+CTest
+
+
+34 / 34 tests passed
+
+CI validates:
+
+Configure
+
+
+        |
+
+
+Build
+
+
+        |
+
+
+CTest
+
+
+        |
+
+
+Result
+Research Documentation
+
+Detailed reverse engineering notes are stored in:
+
+docs/research/
+
+Important documents:
+
+Current project memory
+M2 Retroport Specification
+ADT Retroport Specification
+WMO Retroport Specification
+Golden Reference analysis
+Binary structure analysis
+
+These documents record:
+
+file format research
+conversion decisions
+compatibility analysis
+implementation checkpoints
+Target Pipeline
+WoW 3.3.5a assets
+
+
+        |
+
+
+        v
+
+
+Turtle335Converter
+
+
+        |
+
+
+        v
+
+
+Vanilla/Turtle compatible:
+
+
+    M2
+    WMO
+    ADT
+    BLP
+
+
+        |
+
+
+        v
+
+
+Tortoise extractor
+
+
+        |
+
+
+        v
+
+
+maps / vmaps / mmaps
+
+
+        |
+
+
+        v
+
+
+Turtle WoW 1.18.1
+
+
+
+The final compatibility authority is the target client loader and runtime behavior.
+
+Development Workflow
+
+Recommended workflow:
+
+Create feature branch
+
+
+        |
+
+
+Modify code
+
+
+        |
+
+
+Build locally
+
+
+        |
+
+
+Run tests
+
+
+        |
+
+
+Commit
+
+
+        |
+
+
+Push
+
+
+        |
+
+
+GitHub Actions validation
+
+
+
+Commit style:
+
+feat:
+new feature
+
+
+
+
+fix:
+bug fix
+
+
+
+
+docs:
+documentation
+
+
+
+
+ci:
+continuous integration
+
+
+
+
+chore:
+maintenance
+Repository Layout
+Turtle335Converter
+
+
+├── .github
+│   └── workflows
+│
+├── docs
+│   └── research
+│
+├── include
+│   └── turtle335
+│
+├── src
+│
+├── tests
+│
+├── tools
+│
+├── CMakeLists.txt
+└── README.md
+
+
+Roadmap
+V4.7
+
+Particle pipeline
+
+ParticleReader ✅
+ParticleValidator ✅
+ParticleWriter ⏳
+Classic M2 integration ⏳
+Future
+Complete WotLK → Vanilla conversion pipeline
+More binary validators
+More automated regression testing
+Expanded CI coverage
