@@ -3,5 +3,6 @@
     "include": "include",
     "tests": "tests",
     "tools": "tools",
-    "golden": "golden"
+    "golden": "golden",
+    "wotlk_data": "E:/335_FinalExtract_V5"
 }
