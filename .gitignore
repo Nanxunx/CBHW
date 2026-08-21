@@ -33,3 +33,24 @@ Interface/
 *.tmp
 *.bak
 
+
+# Visual Studio
+.vs/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+
+# MSVC build output
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.dll
+*.exe
+*.lib
+
+# Generated scan files
+repo_tree.txt
