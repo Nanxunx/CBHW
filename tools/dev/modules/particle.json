@@ -1,0 +1,20 @@
+﻿{
+    "name": "particle",
+    "type": "feature",
+    "parent": "m2",
+    "status": "complete",
+
+    "tools": [
+        "turtle335_convert_m2",
+        "turtle335_validate_m2"
+    ],
+
+    "tests": [
+        "turtle335_particle_probe_tests",
+        "turtle335_particle_reader_tests",
+        "turtle335_particle_validator_tests",
+        "turtle335_particle_writer_tests"
+    ],
+
+    "golden": "golden/particle"
+}

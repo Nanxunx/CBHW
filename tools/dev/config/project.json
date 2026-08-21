@@ -1,0 +1,8 @@
+﻿{
+    "project": "Turtle335Converter",
+    "version": "V47",
+    "root": ".",
+    "cmake_root": ".",
+    "build_dir": "build-v46",
+    "default_configuration": "Debug"
+}

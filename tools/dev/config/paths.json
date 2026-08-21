@@ -1,0 +1,7 @@
+﻿{
+    "source": "src",
+    "include": "include",
+    "tests": "tests",
+    "tools": "tools",
+    "golden": "golden"
+}
