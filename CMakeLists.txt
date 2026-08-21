@@ -26,3 +26,13 @@ target_compile_options(turtle335_core PRIVATE
 include(cmake/Tools.cmake)
 
 include(cmake/Tests.cmake)
+add_executable(
+    turtle335_validate_m2
+    tools_validate_m2.cpp
+)
+
+target_link_libraries(
+    turtle335_validate_m2
+    PRIVATE turtle335_core
+)
+
