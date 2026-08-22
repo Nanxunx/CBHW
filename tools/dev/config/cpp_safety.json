@@ -1,0 +1,27 @@
+﻿{
+    "rules": [
+        {
+            "name": "brace_check",
+            "enabled": true
+        },
+        {
+            "name": "parenthesis_check",
+            "enabled": true
+        },
+        {
+            "name": "empty_push_back",
+            "enabled": true,
+            "pattern": "push_back\\(\\s*\\)"
+        },
+        {
+            "name": "broken_assignment",
+            "enabled": true,
+            "pattern": "std::string\\s+\\w+\\s*=\\s*;"
+        },
+        {
+            "name": "dangling_file_path",
+            "enabled": true,
+            "pattern": "file\\.path\\(\\)\\s*;"
+        }
+    ]
+}

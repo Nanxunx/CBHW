@@ -1,0 +1,7 @@
+﻿{
+    "allow_raw_replace": false,
+    "backup_before_patch": true,
+    "show_diff": true,
+    "build_after_patch": true,
+    "test_after_build": true
+}

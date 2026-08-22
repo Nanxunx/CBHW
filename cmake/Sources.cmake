@@ -1,5 +1,6 @@
-add_library(turtle335_core
-
+﻿add_library(turtle335_core
+    src/model/ModelPackage.cpp
+    src/model/ModelScanner.cpp
     src/adt/Mcal.cpp
     src/adt/LegacyLiquid.cpp
     src/adt/MclqWriter.cpp

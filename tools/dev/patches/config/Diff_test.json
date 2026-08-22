@@ -1,0 +1,22 @@
+﻿{
+    "file":"src/model/diff_test.cpp",
+
+    "old":
+    "    int value = 10;",
+
+    "new":
+    "    int value = 20;",
+
+
+    "allowed_paths":[
+
+        "cmake/Sources.cmake",
+
+        "src/model/",
+
+        "include/turtle335/model/"
+    ],
+
+
+    "allow_tool_changes":false
+}

@@ -1,0 +1,9 @@
+﻿{
+    "file": "src/model/ModelScanner.cpp",
+
+    "old":
+"package.m2Files.push_back(\n                path\n            );",
+
+    "new":
+"package.m2Files.push_back(\n                file.path().string()\n            );"
+}
