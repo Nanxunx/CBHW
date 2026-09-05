@@ -1,0 +1,99 @@
+name: Build Conjure Bilingual Windows
+
+on:
+  push:
+    branches:
+      - chatgpt/conjure-bilingual-20260905
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned upstream Conjure
+        uses: actions/checkout@v4
+        with:
+          repository: TheDaveCalaz/Conjure
+          ref: 2d09dd0f0567b8469716a3f2113f9dbcd43a47a1
+          path: upstream
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyInstaller
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+
+      - name: Run upstream self-tests
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$pwd\upstream"
+          python -m unittest discover -s upstream\tests -v
+
+      - name: Syntax-check bilingual launcher
+        shell: pwsh
+        run: |
+          python -m py_compile chatgpt_conjure_build\conjure_bilingual.py
+
+      - name: Build standalone Windows EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --noconfirm `
+            --clean `
+            --onefile `
+            --noconsole `
+            --name "Conjure-Bilingual" `
+            --icon "upstream\assets\icon.ico" `
+            --paths "upstream" `
+            --hidden-import "conjure.config" `
+            --hidden-import "conjure.core" `
+            --hidden-import "conjure.dbc" `
+            --hidden-import "conjure.errors" `
+            --hidden-import "conjure.m2" `
+            --hidden-import "conjure.skin" `
+            --hidden-import "conjure.sql" `
+            --hidden-import "conjure.wizard" `
+            --add-data "upstream;upstream" `
+            "chatgpt_conjure_build\conjure_bilingual.py"
+
+      - name: Verify output and generate SHA256
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\Conjure-Bilingual.exe")) { throw "EXE was not generated" }
+          $hash = (Get-FileHash "dist\Conjure-Bilingual.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  Conjure-Bilingual.exe" | Out-File -FilePath "dist\SHA256SUMS.txt" -Encoding ascii
+          @"
+          Conjure Bilingual Windows x64
+          =============================
+          Default language: Simplified Chinese
+          Menu: 语言 / Language -> 简体中文 / English
+          Upstream: TheDaveCalaz/Conjure
+          Pinned commit: 2d09dd0f0567b8469716a3f2113f9dbcd43a47a1
+          Core M2/DBC/SKIN/SQL source is bundled unchanged from upstream.
+          No Python installation or compiler is required to run the EXE.
+          "@ | Out-File -FilePath "dist\README.txt" -Encoding utf8
+          Get-Item "dist\Conjure-Bilingual.exe" | Format-List Name,Length,LastWriteTime
+          Get-Content "dist\SHA256SUMS.txt"
+
+      - name: Upload ready-to-run package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Conjure-Bilingual-Windows-x64
+          path: |
+            dist/Conjure-Bilingual.exe
+            dist/SHA256SUMS.txt
+            dist/README.txt
+          if-no-files-found: error
+          compression-level: 9
+          retention-days: 7
